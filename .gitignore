@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.local
+
+# Foundry
+packages/contracts/out/
+packages/contracts/cache/
+packages/contracts/broadcast/
+
+# Live2D 모델 에셋 (라이선스상 저장소에 커밋하지 않는다)
+apps/web/public/live2d/
+
+# Foundry 의존성 — pnpm contracts:setup 으로 복원
+packages/contracts/lib/
+.gstack/

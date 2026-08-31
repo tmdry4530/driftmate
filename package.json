@@ -1,0 +1,20 @@
+{
+  "name": "soon",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b --pretty",
+    "contracts:test": "forge test --root packages/contracts",
+    "contracts:setup": "forge install --root packages/contracts",
+    "e2e": "tsx apps/keeper/e2e/run.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0"
+  },
+  "packageManager": "pnpm@11.17.0"
+}
