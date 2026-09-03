@@ -1,0 +1,23 @@
+{
+  "task_id": "B003",
+  "spec_hash": "62a1658ea3fadd8ad2c7f460a6a6b2e90ab129ea4f93a2f42efcb586458fd8c3",
+  "status": "verified",
+  "attempt": 1,
+  "changed_files": [
+    ".claude/specs/binance-agent-os-track-a/approvals.yaml",
+    ".claude/specs/binance-agent-os-track-a/state.yaml",
+    ".claude/specs/binance-agent-os-track-a/tasks.yaml",
+    ".claude/specs/binance-agent-os-track-a/traceability.yaml",
+    ".claude/specs/binance-agent-os-track-a/evidence/B001.json",
+    ".claude/specs/binance-agent-os-track-a/evidence/B002.json",
+    ".claude/specs/binance-agent-os-track-a/evidence/B003.json"
+  ],
+  "verification": [
+    { "command": "pnpm test", "exit_code": 0, "summary": "19 files and 138 tests passed" },
+    { "command": "pnpm typecheck", "exit_code": 0, "summary": "TypeScript project references passed" },
+    { "command": "pnpm --filter @soon/web build", "exit_code": 0, "summary": "Production build passed with existing dependency annotation and chunk-size warnings" },
+    { "command": "pnpm contracts:test", "exit_code": 0, "summary": "66 Solidity tests passed" },
+    { "command": "pnpm e2e", "exit_code": 0, "summary": "34 of 34 Anvil checks passed" },
+    { "command": "git diff --check", "exit_code": 0, "summary": "No whitespace errors" }
+  ]
+}

@@ -1,8 +1,18 @@
 # DriftMate (`soon`)
 
-캐릭터의 성향을 결정론적 온체인 리밸런싱 전략으로 사용하는 비수탁형 에이전트 프로젝트다. 사용자가 격리 볼트의 owner로 남고 Keeper가 서명된 한도 안에서만 동작하는 구조를 목표로 한다. LLM과 Live2D는 판단을 바꾸지 않고 설명과 표현만 담당한다. 현재는 로컬 MVP이며, 태스크와 인수 조건을 마치기 전에는 실자금에 사용하지 않는다.
+[English](./README.en.md) · 한국어
+
+캐릭터의 성향을 결정론적 온체인 리밸런싱 전략으로 사용하는 비수탁형 에이전트 프로젝트다. 사용자가 격리 볼트의 owner로 남고 Keeper가 서명된 한도 안에서만 동작한다. LLM과 Live2D는 판단을 바꾸지 않고 설명과 표현만 담당한다. 현재는 검증된 로컬 MVP이며 외부 보안 감사를 받지 않았으므로 실자금에는 사용하지 않는다.
 
 현재 제품 계약과 구현 순서는 [기획서](./.claude/specs/character-agent-rebalancer/idea-proposal.md), [요구사항](./.claude/specs/character-agent-rebalancer/requirements.md), [설계](./.claude/specs/character-agent-rebalancer/design.md), [태스크](./.claude/specs/character-agent-rebalancer/tasks.md)에 있다.
+
+## Binance Agent OS Track A
+
+이 브랜치는 Binance Agent OS를 **읽기 전용 시장 맥락**으로 연결한다. Agent OS 데이터는 설명에만 쓰며, 거래 판단·목표·금액·승인 Gate는 기존 결정론적 엔진과 AgentVault만 정한다.
+
+- 에이전트 스킬: [`skills/driftmate/SKILL.md`](./skills/driftmate/SKILL.md)
+- 설치·3분 데모·제출 체크리스트: [Track A 제출 가이드](./docs/binance-agent-os-track-a.md)
+- 설계 계약: [Track A 요구사항](./.claude/specs/binance-agent-os-track-a/requirements.md), [ADR-0007](./.claude/specs/adr/0007-binance-market-context-boundary.md)
 
 ## 베이스와 확장 브랜치
 
@@ -10,10 +20,10 @@
 
 ## 빠른 시작
 
-필수 환경은 Git, Node.js 24.12 이상과 Corepack이다. 비공개 저장소를 읽을 수 있는 GitHub SSH 인증이 필요하다.
+필수 환경은 Git, Node.js 24.12 이상과 Corepack이다.
 
 ```bash
-git clone git@github.com:tmdry4530/driftmate.git
+git clone --branch hackathon/binance-agent-os https://github.com/tmdry4530/driftmate.git
 cd driftmate
 corepack enable
 pnpm install --frozen-lockfile

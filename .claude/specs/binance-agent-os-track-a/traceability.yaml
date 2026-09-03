@@ -1,0 +1,15 @@
+spec_id: HACK-2026-0001
+requirements:
+  BA1.1: { design: [design.md], tasks: [B001], tests: [skill-creator/quick_validate.py, skills-cli discovery], evidence: [evidence/B001.json] }
+  BA1.2: { design: [design.md], tasks: [B001], tests: [skills-cli discovery], evidence: [evidence/B001.json] }
+  BA1.3: { design: [design.md], tasks: [B001], tests: [static boundary check], evidence: [evidence/B001.json] }
+  BA2.1: { design: [design.md], tasks: [B001], tests: [query-token-info live read], evidence: [evidence/B001.json] }
+  BA2.2: { design: [design.md], tasks: [B001], tests: [static boundary check], evidence: [evidence/B001.json] }
+  BA2.3: { design: [design.md], tasks: [B001], tests: [skill instruction review], evidence: [evidence/B001.json] }
+  BA3.1: { design: [design.md, ../adr/0007-binance-market-context-boundary.md], tasks: [B001, B003], tests: [git diff boundary check], evidence: [evidence/B001.json, evidence/B003.json] }
+  BA3.2: { design: [design.md], tasks: [B001], tests: [static boundary check], evidence: [evidence/B001.json] }
+  BA3.3: { design: [design.md], tasks: [B001], tests: [skill instruction review], evidence: [evidence/B001.json] }
+  BA3.4: { design: [design.md], tasks: [B001], tests: [skill instruction review], evidence: [evidence/B001.json] }
+  BA4.1: { design: [design.md], tasks: [B002], tests: [documentation link check], evidence: [evidence/B002.json] }
+  BA4.2: { design: [design.md], tasks: [B003], tests: [base verification suite], evidence: [evidence/B003.json] }
+  BA4.3: { design: [design.md], tasks: [B001, B003], tests: [skill-creator/quick_validate.py, skills-cli discovery], evidence: [evidence/B001.json, evidence/B003.json] }

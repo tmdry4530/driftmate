@@ -1,0 +1,11 @@
+{
+  "task_id": "B002",
+  "spec_hash": "62a1658ea3fadd8ad2c7f460a6a6b2e90ab129ea4f93a2f42efcb586458fd8c3",
+  "status": "verified",
+  "attempt": 1,
+  "changed_files": ["docs/binance-agent-os-track-a.md", "README.md", "README.en.md"],
+  "verification": [
+    { "command": "documentation review", "exit_code": 0, "summary": "Official Agent OS connection, local commands, 3-minute demo and submission checklist are linked from README" },
+    { "command": "command comparison", "exit_code": 0, "summary": "Documented package, Foundry, E2E and web commands match repository scripts" }
+  ]
+}

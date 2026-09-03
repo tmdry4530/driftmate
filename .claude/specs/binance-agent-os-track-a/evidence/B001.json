@@ -1,0 +1,14 @@
+{
+  "task_id": "B001",
+  "spec_hash": "62a1658ea3fadd8ad2c7f460a6a6b2e90ab129ea4f93a2f42efcb586458fd8c3",
+  "status": "verified",
+  "attempt": 2,
+  "changed_files": ["skills/driftmate/SKILL.md"],
+  "prior_failures": ["quick_validate.py first ran under a Python environment without PyYAML; reran in an isolated uv environment without changing repository dependencies"],
+  "verification": [
+    { "command": "uv run --with pyyaml python quick_validate.py skills/driftmate", "exit_code": 0, "summary": "Skill is valid" },
+    { "command": "npx skills add . --list --full-depth", "exit_code": 0, "summary": "Found exactly one installable skill named driftmate" },
+    { "command": "query-token-info dynamic for BSC WBNB", "exit_code": 0, "summary": "Official Binance Skills Hub live endpoint returned price, volume, holders and liquidity data" },
+    { "command": "static boundary check", "exit_code": 0, "summary": "Only GET /status and market data reads are allowed; trade, transfer, wallet and contract writes are explicitly prohibited" }
+  ]
+}

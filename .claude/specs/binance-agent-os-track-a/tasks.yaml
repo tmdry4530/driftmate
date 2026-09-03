@@ -1,0 +1,82 @@
+spec_id: HACK-2026-0001
+execution_policy:
+  max_task_attempts: 3
+  max_same_failure_repeats: 2
+tasks:
+  - id: B001
+    title: 읽기 전용 DriftMate 스킬
+    outcome: Agent OS 에이전트가 DriftMate 상태와 Binance 시장 맥락을 쓰기 권한 없이 설명한다.
+    requirements: [BA1.1, BA1.2, BA1.3, BA2.1, BA2.2, BA2.3, BA3.1, BA3.2, BA3.3, BA3.4]
+    depends_on: []
+    context:
+      files: [skills/driftmate/SKILL.md, apps/keeper/src/server.ts]
+      symbols: [KeeperStatus]
+    scope:
+      allowed_paths: [skills/driftmate]
+      forbidden_paths: [packages/engine, packages/contracts, packages/shared, apps/keeper, apps/web]
+      must_preserve: [GET status only, market data only, owner direct approval]
+    capabilities:
+      network: true
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [quick_validate.py skills/driftmate, npx skills add . --list --full-depth]
+      full: [quick_validate.py skills/driftmate, npx skills add . --list --full-depth, query-token-info dynamic live read]
+    evidence: evidence/B001.json
+
+  - id: B002
+    title: Track A 데모와 제출 문서
+    outcome: 심사자가 설치부터 3분 데모와 제출까지 한 문서로 재현한다.
+    requirements: [BA4.1]
+    depends_on: [B001]
+    context:
+      files: [docs/binance-agent-os-track-a.md, README.md]
+      symbols: []
+    scope:
+      allowed_paths: [docs/binance-agent-os-track-a.md, README.md, README.en.md]
+      forbidden_paths: [packages, apps]
+      must_preserve: [로컬 Anvil 고지, 실자금 금지]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [문서 링크 확인]
+      full: [문서 링크 확인, 명령 대조]
+    evidence: evidence/B002.json
+
+  - id: B003
+    title: 베이스 회귀 검증과 증거
+    outcome: Agent OS 패키징 뒤에도 모든 베이스 계약과 실행 흐름이 유지된다.
+    requirements: [BA4.2, BA4.3]
+    depends_on: [B001, B002]
+    context:
+      files: [.claude/specs/binance-agent-os-track-a, skills/driftmate, docs/binance-agent-os-track-a.md]
+      symbols: []
+    scope:
+      allowed_paths: [.claude/specs/binance-agent-os-track-a, skills/driftmate, docs/binance-agent-os-track-a.md, README.md]
+      forbidden_paths: [.github/workflows/base-contract.yml]
+      must_preserve: [베이스 검증, 코어의 체인 중립성, 실자금 금지]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: test-only
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm test, pnpm typecheck]
+      full: [pnpm test, pnpm typecheck, pnpm --filter @soon/web build, pnpm contracts:test, pnpm e2e]
+    evidence: evidence/B003.json

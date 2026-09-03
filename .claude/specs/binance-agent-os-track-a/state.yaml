@@ -1,0 +1,53 @@
+spec_id: HACK-2026-0001
+slug: binance-agent-os-track-a
+mode:
+  primary: feature
+  secondary: [security, hackathon]
+risk: L2
+phase: PLAN_APPROVED
+status: complete
+repository:
+  base_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+  branch: hackathon/binance-agent-os
+  dirty_paths:
+    - .claude/specs/character-agent-rebalancer
+    - apps/keeper
+    - apps/web
+    - packages/contracts
+    - packages/engine
+    - packages/shared
+baseline:
+  commands:
+    - command: pnpm test
+      result: passed
+      detail: 138 tests passed
+    - command: pnpm typecheck
+      result: passed
+    - command: pnpm --filter @soon/web build
+      result: passed
+      detail: existing dependency annotation and chunk-size warnings
+    - command: pnpm contracts:test
+      result: passed
+      detail: 66 tests passed
+    - command: pnpm e2e
+      result: passed
+      detail: 34 of 34 checks passed
+artifacts:
+  requirements: approved
+  design: approved
+  tasks: approved
+execution:
+  executor: codex-native
+  spec_hash: 62a1658ea3fadd8ad2c7f460a6a6b2e90ab129ea4f93a2f42efcb586458fd8c3
+  run_id: run-20260904-binance-track-a
+  current_task: ""
+  blocked_reason: ""
+  tasks:
+    B001: { status: verified, attempts: 2, last_failure: "", spec_hash: 62a1658ea3fadd8ad2c7f460a6a6b2e90ab129ea4f93a2f42efcb586458fd8c3 }
+    B002: { status: verified, attempts: 1, last_failure: "", spec_hash: 62a1658ea3fadd8ad2c7f460a6a6b2e90ab129ea4f93a2f42efcb586458fd8c3 }
+    B003: { status: verified, attempts: 1, last_failure: "", spec_hash: 62a1658ea3fadd8ad2c7f460a6a6b2e90ab129ea4f93a2f42efcb586458fd8c3 }
+delivery:
+  code_complete: true
+  release_ready: true
+  deployed: false
+  post_deploy_verified: false

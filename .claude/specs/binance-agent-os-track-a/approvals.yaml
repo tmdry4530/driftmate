@@ -1,0 +1,31 @@
+spec_id: HACK-2026-0001
+artifacts:
+  requirements:
+    status: approved
+    version: 1
+    artifact_sha256: 8edbc8d17b851edec8d6d622e38e1cd1dd2578f1b404440238a79aec0225a4db
+    based_on_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+    approved_by: user
+    approved_at: "2026-09-04T07:47:49+09:00"
+  design:
+    status: approved
+    version: 1
+    artifact_sha256: 8e135950d9bc1bde6864235d74729bc61658db6f77973b46abb97f13061611b5
+    based_on_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+    approved_by: user
+    approved_at: "2026-09-04T07:47:49+09:00"
+  tasks:
+    status: approved
+    version: 1
+    artifact_sha256: d418fb7af38ea8d8af77a36a3aacdc936f2faf644bf8e57440369eed600839be
+    based_on_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+    approved_by: user
+    approved_at: "2026-09-04T07:47:49+09:00"
+  release:
+    status: not_required
+    version: 0
+    artifact_sha256: ""
+    based_on_commit: ""
+    approved_by: ""
+    approved_at: ""
+invalidation_history: []
