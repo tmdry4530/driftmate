@@ -10,7 +10,7 @@
 
 ## 빠른 시작
 
-필수 환경은 Git, Node.js 20 이상과 Corepack이다. 비공개 저장소를 읽을 수 있는 GitHub SSH 인증이 필요하다.
+필수 환경은 Git, Node.js 24.12 이상과 Corepack이다. 비공개 저장소를 읽을 수 있는 GitHub SSH 인증이 필요하다.
 
 ```bash
 git clone git@github.com:tmdry4530/driftmate.git
