@@ -1,0 +1,25 @@
+{
+  "task_id": "T006",
+  "spec_hash": "43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937",
+  "status": "verified",
+  "attempt": 1,
+  "changed_files": [
+    "packages/shared/src/trust.ts",
+    "packages/engine/src/trust.ts",
+    "packages/engine/src/trust.test.ts",
+    "packages/engine/src/pnl.ts",
+    "packages/engine/src/pnl.test.ts",
+    "packages/engine/src/index.ts",
+    "apps/web/src/performance.ts",
+    "apps/web/src/performance.test.ts",
+    "apps/web/src/components/PerformancePanel.tsx",
+    "apps/web/src/App.tsx",
+    "apps/keeper/src/keeper.ts",
+    "apps/keeper/e2e/run.ts"
+  ],
+  "verification": [
+    { "command": "pnpm vitest run packages/engine/src apps/web/src/performance.test.ts", "exit_code": 0, "summary": "55 tests passed, including character isolation, unsupported formula failure, session PnL and cashflow mismatch" },
+    { "command": "pnpm typecheck", "exit_code": 0, "summary": "TypeScript project references passed" },
+    { "command": "git diff --check", "exit_code": 0, "summary": "No whitespace errors" }
+  ]
+}

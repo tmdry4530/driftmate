@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Address, DecisionId, TrackRecord } from '@soon/shared'
-import { computePerformance } from './performance.js'
+import type { Address, CharacterId, DecisionId, TrackRecord } from '@soon/shared'
+import { computePerformance as computePerformanceFor } from './performance.js'
 
 const TOKEN = '0x1111111111111111111111111111111111111111' as Address
 const USDC = '0x2222222222222222222222222222222222222222' as Address
@@ -9,9 +9,18 @@ function did(n: number): DecisionId {
   return `0x${n.toString(16).padStart(64, '0')}`
 }
 
-function trade(n: number, volume: bigint, slippage: bigint, cost: bigint): TrackRecord[] {
+const session = { delegationId: 1n, characterId: 'timid', trustFormulaVersion: 1 } as const
+
+function trade(
+  n: number,
+  volume: bigint,
+  slippage: bigint,
+  cost: bigint,
+  characterId: CharacterId = 'timid',
+): TrackRecord[] {
+  const scoped = { ...session, characterId }
   return [
-    { kind: 'cost', decisionId: did(n), blockNumber: BigInt(n), amount: cost, costKind: 'price_data' },
+    { ...scoped, kind: 'cost', decisionId: did(n), blockNumber: BigInt(n), amount: cost, costKind: 'price_data' },
     {
       kind: 'executed',
       decisionId: did(n),
@@ -20,10 +29,16 @@ function trade(n: number, volume: bigint, slippage: bigint, cost: bigint): Track
       tokenOut: USDC,
       amountIn: 1n,
       amountOut: 1n,
-      valueQuote: volume,
+      ...scoped,
+      valueInQuote: volume,
+      valueOutQuote: volume - slippage,
       frictionQuote: slippage,
     },
   ]
+}
+
+function computePerformance(records: readonly TrackRecord[]) {
+  return computePerformanceFor(records, 'timid')
 }
 
 describe('computePerformance (R7.6, R7.7, R11.7)', () => {
@@ -35,7 +50,7 @@ describe('computePerformance (R7.6, R7.7, R11.7)', () => {
     expect(p.slippageOnlyBps).toBe(10)
     expect(p.operatingImpactBps).toBe(10)
     // 대표값이 참고값보다 항상 나쁘거나 같다 — 비용을 숨기지 않는다.
-    expect(p.totalFrictionBps).toBeGreaterThanOrEqual(p.slippageOnlyBps)
+    expect(p.totalFrictionBps!).toBeGreaterThanOrEqual(p.slippageOnlyBps!)
   })
 
   it('운영비가 커지면 대표값이 나빠진다', () => {
@@ -44,15 +59,15 @@ describe('computePerformance (R7.6, R7.7, R11.7)', () => {
 
     // 슬리피지는 같은데 데이터를 비싸게 샀다.
     expect(pricey.slippageOnlyBps).toBe(cheap.slippageOnlyBps)
-    expect(pricey.totalFrictionBps).toBeGreaterThan(cheap.totalFrictionBps)
+    expect(pricey.totalFrictionBps!).toBeGreaterThan(cheap.totalFrictionBps!)
   })
 
   it('거래로 이어지지 않은 판단의 운영비도 비용에 잡힌다', () => {
     const records: TrackRecord[] = [
       ...trade(1, 1_000_000_000n, 1_000_000n, 1_000_000n),
       // 판단만 하고 실행하지 않은 건 — 데이터 값은 이미 나갔다.
-      { kind: 'cost', decisionId: did(9), blockNumber: 9n, amount: 5_000_000n, costKind: 'price_data' },
-      { kind: 'not_executed', decisionId: did(9), blockNumber: 9n, reason: 'cost_exceeds_benefit' },
+      { ...session, kind: 'cost', decisionId: did(9), blockNumber: 9n, amount: 5_000_000n, costKind: 'price_data' },
+      { ...session, kind: 'not_executed', decisionId: did(9), blockNumber: 9n, reason: 'cost_exceeds_benefit' },
     ]
     const p = computePerformance(records)
     expect(p.operatingCost).toBe(6_000_000n)
@@ -69,9 +84,19 @@ describe('computePerformance (R7.6, R7.7, R11.7)', () => {
     expect(p.operatingCost).toBe(1_000_000n)
   })
 
-  it('거래가 없으면 0으로 둔다', () => {
+  it('거래가 없으면 비율을 N/A로 둔다', () => {
     const p = computePerformance([])
     expect(p.tradeCount).toBe(0)
-    expect(p.totalFrictionBps).toBe(0)
+    expect(p.totalFrictionBps).toBeNull()
+  })
+
+  it('선택한 캐릭터 기록만 합산한다', () => {
+    const p = computePerformanceFor([
+      ...trade(1, 1_000n, 10n, 5n),
+      ...trade(2, 9_000n, 900n, 500n, 'easygoing'),
+    ], 'timid')
+
+    expect(p.tradeCount).toBe(1)
+    expect(p.totalVolume).toBe(1_000n)
   })
 })

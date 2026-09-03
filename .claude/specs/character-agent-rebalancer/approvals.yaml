@@ -1,0 +1,37 @@
+spec_id: INT-2026-0001
+artifacts:
+  requirements:
+    status: approved
+    version: 1
+    artifact_sha256: c4fc524594ad9dc8bdb55c03cc159abf260c56600c3a4deccd5312093f350173
+    based_on_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+    approved_by: user
+    approved_at: "2026-09-03T00:00:00+09:00"
+  design:
+    status: approved
+    version: 1
+    artifact_sha256: fec2b785f5dc60112850230d7f6a687d21fb76c24ed7648c17049d6a64d8224a
+    based_on_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+    approved_by: user
+    approved_at: "2026-09-03T00:00:00+09:00"
+  tasks:
+    status: approved
+    version: 1
+    artifact_sha256: 1f5422f0104c4bd4cb7346a30fb97eaee1923b9afe350710d22e527eb45538b2
+    based_on_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+    approved_by: user
+    approved_at: "2026-09-04T06:22:41+09:00"
+  release:
+    status: not_required
+    version: 0
+    artifact_sha256: ""
+    based_on_commit: ""
+    approved_by: ""
+    approved_at: ""
+invalidation_history:
+  - artifact: tasks
+    previous_sha256: 119b3555a28dcdb753a1e547ad93850d5a621d915dd44b0946caac633f1f1795
+    new_sha256: 1f5422f0104c4bd4cb7346a30fb97eaee1923b9afe350710d22e527eb45538b2
+    reason: Solidity 구조체 변경이 모든 Forge 테스트 fixture의 컴파일에 영향을 주므로 T002 허용 경로를 테스트 디렉터리로 확장
+    approved_by: user
+    approved_at: "2026-09-04T06:22:41+09:00"

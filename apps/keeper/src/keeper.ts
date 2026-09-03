@@ -2,323 +2,787 @@ import type {
   Address,
   Bps,
   CharacterId,
-  Decision,
   DecisionEvidence,
   DecisionId,
   Holding,
-  PortfolioTarget,
+  KeeperStatus,
+  Narration,
+  PendingDecision,
+  PendingView,
+  Persona,
+  PortfolioBaseline,
   PriceSnapshot,
   SkipReason,
   TrackRecord,
 } from '@soon/shared'
-import { BPS_DENOMINATOR, canonical, characterOf, computeTrust, decide, resolveGate, sameAddress } from '@soon/engine'
+import {
+  BPS_DENOMINATOR,
+  PRICE_SCALE,
+  canonical,
+  characterOf,
+  computePnl,
+  computeTrust,
+  decide,
+  resolveGate,
+  sameAddress,
+} from '@soon/engine'
 import { NOT_EXECUTED_REASON } from './abi.js'
+import { strategyHash, SUPPORTED_TRUST_FORMULA_VERSION } from './delegation.js'
+import { narrate, templateNarration, type LlmClient } from './narrator.js'
 import { BudgetExhaustedError, CostMeter } from './payment.js'
-import type { ChainReader, VaultWriter } from './ports.js'
+import type { ChainReader, OnChainDelegation, VaultWriter } from './ports.js'
 import { isFresh } from './priceSource.js'
 
 export type TickResult =
-  | { kind: 'inactive'; reason: 'revoked' | 'expired' }
-  | { kind: 'skipped'; reason: SkipReason | 'budget_exhausted'; decisionId?: DecisionId }
+  | { kind: 'inactive'; reason: 'revoked' | 'expired' | 'unsupported_delegation' | 'cashflow_unknown' }
+  | { kind: 'skipped'; reason: SkipReason | 'budget_exhausted' | 'expired'; decisionId?: DecisionId }
   | { kind: 'executed'; decisionId: DecisionId; txHash: `0x${string}`; value: bigint }
   | { kind: 'asked'; decisionId: DecisionId; overBy: bigint; effectiveCap: bigint }
+  | { kind: 'awaiting_approval'; decisionId: DecisionId; expiresAt: bigint }
   | { kind: 'rejected'; decisionId: DecisionId; reason: string }
 
-export type PendingApproval = {
-  decision: Decision
-  dex: Address
-  createdAtBlock: bigint
-  expiresAtBlock: bigint
-}
-
-export type KeeperConfig = {
+export type KeeperConfig = Readonly<{
   vault: Address
-  pool: Address
-  characterId: CharacterId
-  target: PortfolioTarget
-  assets: readonly Address[]
-  slippageToleranceBps: Bps
   maxAgeBlocks: bigint
-  /** 승인 요청이 이 블록 수 안에 처리되지 않으면 만료된다 (R5.4). */
-  approvalTtlBlocks: bigint
   gasValueEstimate: bigint
-}
+}>
 
 function utf8ToHex(s: string): `0x${string}` {
   const bytes = new TextEncoder().encode(s)
   let out = ''
-  for (const b of bytes) out += b.toString(16).padStart(2, '0')
+  for (const byte of bytes) out += byte.toString(16).padStart(2, '0')
   return `0x${out}`
 }
 
-function encodeEvidence(e: DecisionEvidence): `0x${string}` {
-  return utf8ToHex(canonical(e))
+function encodeEvidence(evidence: DecisionEvidence): `0x${string}` {
+  return utf8ToHex(canonical(evidence))
 }
 
-/** 판단의 스킵 사유를 온체인 코드로 옮긴다. 빠짐없이 다루도록 switch로 쓴다. */
+function characterId(value: string): CharacterId | undefined {
+  return value === 'timid' || value === 'easygoing' ? value : undefined
+}
+
 function skipReasonCode(reason: SkipReason): number {
-  switch (reason) {
-    case 'within_band':
-      return NOT_EXECUTED_REASON.within_band
-    case 'below_min_trade':
-      return NOT_EXECUTED_REASON.below_min_trade
-    case 'cost_exceeds_benefit':
-      return NOT_EXECUTED_REASON.cost_exceeds_benefit
-    case 'stale_price':
-      return NOT_EXECUTED_REASON.stale_price
-  }
+  return NOT_EXECUTED_REASON[reason]
 }
 
-/**
- * 자동 실행을 돌리는 프로세스.
- *
- * 사용자가 브라우저를 닫아도 리밸런싱이 성립하려면 상시 도는 주체가 필요하다 (R5.1).
- * 이 프로세스의 키는 볼트의 execute·chargeCost만 부를 수 있고 인출은 못 한다 —
- * 여기가 뚫려도 손실은 볼트 한도 안으로 묶인다 (ADR-0001).
- */
+function gateReasonCode(reason: string): number {
+  if (reason === 'expired') return NOT_EXECUTED_REASON.expired
+  if (reason === 'budget_exhausted') return NOT_EXECUTED_REASON.budget_exhausted
+  return NOT_EXECUTED_REASON.rejected
+}
+
+function remaining(limit: bigint, spent: bigint): bigint {
+  return spent >= limit ? 0n : limit - spent
+}
+
+const PERSONAS: Readonly<Record<CharacterId, Persona>> = {
+  timid: { characterId: 'timid', voice: '조심스럽고 책임감 있는', tone: 'soft' },
+  easygoing: { characterId: 'easygoing', voice: '느긋하고 담담한', tone: 'calm' },
+}
+
 export class Keeper {
   private lastSnapshot: PriceSnapshot | undefined
-  private pending = new Map<DecisionId, PendingApproval>()
+  private inFlight: Promise<TickResult> | undefined
+  private readonly narrationCache = new Map<string, Readonly<{
+    narration: Narration
+    outcome: DecisionEvidence['outcome']
+  }>>()
+  private statusValue: KeeperStatus = { phase: 'idle', delegationId: null, configHash: null }
 
   constructor(
     private readonly reader: ChainReader,
     private readonly writer: VaultWriter,
     private readonly meter: CostMeter,
     private readonly config: KeeperConfig,
-    private readonly loadRecords: () => Promise<readonly TrackRecord[]>,
+    private readonly loadRecords: (toBlock?: bigint) => Promise<readonly TrackRecord[]>,
+    private readonly llm?: LlmClient,
   ) {}
 
-  pendingApprovals(): readonly PendingApproval[] {
-    return [...this.pending.values()]
+  status(): KeeperStatus {
+    return this.statusValue
   }
 
-  /**
-   * 이 판단으로 교정할 수 있는 가치의 대략적인 상한.
-   * 직전 스냅샷으로 계산하므로 정확하지 않지만, 데이터를 살 값어치가 있는지
-   * 가늠하는 데는 충분하다.
-   */
-  private roughCorrectableValue(holdings: readonly Holding[], bandBps: Bps): bigint | undefined {
-    const snap = this.lastSnapshot
-    if (!snap) return undefined
+  async refreshStatus(): Promise<KeeperStatus> {
+    if (this.inFlight) return this.statusValue
+    try {
+      const blockNumber = await this.reader.getBlockNumber()
+      const [delegation, baseline, pending] = await Promise.all([
+        this.reader.readDelegation(this.config.vault, blockNumber),
+        this.reader.readPortfolioBaseline(this.config.vault, blockNumber),
+        this.reader.readPendingDecision(this.config.vault, blockNumber),
+      ])
+      const identity = {
+        delegationId: delegation.delegationId === 0n ? null : String(delegation.delegationId),
+        configHash: delegation.configHash,
+      } as const
+      if (delegation.expiry === 0n) {
+        this.statusValue = { phase: 'idle', ...identity }
+        return this.statusValue
+      }
+      const id = this.validateDelegation(delegation, baseline)
+      if (!id || baseline.characterId !== id) {
+        this.statusValue = { phase: 'idle', ...identity, lastError: 'unsupported delegation' }
+        return this.statusValue
+      }
 
-    const priceOf = new Map(snap.prices.map((p) => [p.asset.toLowerCase(), p.priceE18]))
-    let total = 0n
-    for (const h of holdings) {
-      const p = priceOf.get(h.asset.toLowerCase())
-      if (p === undefined) return undefined
-      total += (h.amount * p) / 1_000_000_000_000_000_000n
+      const [records, targetBalance, quoteBalance, targetPriceE18] = await Promise.all([
+        this.loadRecords(blockNumber),
+        this.reader.readBalance(delegation.targetAsset, this.config.vault, blockNumber),
+        this.reader.readBalance(delegation.quoteAsset, this.config.vault, blockNumber),
+        this.reader.readSpotPriceE18(delegation.allowedDexes[0] as Address, delegation.targetAsset, blockNumber),
+      ])
+      const pnl = computePnl({
+        vault: this.config.vault,
+        baseline,
+        current: { blockNumber, targetBalance, quoteBalance, targetPriceE18 },
+        operatingSpent: delegation.operatingSpent,
+        records,
+      })
+      if (pnl.status === 'cashflow_unknown') {
+        this.statusValue = { phase: 'idle', ...identity, lastError: 'cashflow_unknown' }
+        return this.statusValue
+      }
+
+      const base: KeeperStatus = {
+        phase: 'idle',
+        ...identity,
+        snapshot: {
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          blockNumber: String(blockNumber),
+          targetBalance: String(targetBalance),
+          quoteBalance: String(quoteBalance),
+          targetPriceE18: String(targetPriceE18),
+          valueQuote: String(pnl.currentValueQuote),
+        },
+        lossReport: {
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          reportId: pnl.reportId,
+          baselineBlock: String(baseline.blockNumber),
+          currentBlock: String(blockNumber),
+          baselineValueQuote: String(baseline.valueQuote),
+          currentValueQuote: String(pnl.currentValueQuote),
+          operatingSpent: String(delegation.operatingSpent),
+          pnlQuote: String(pnl.pnlQuote ?? 0n),
+          pnlBps: pnl.pnlBps ?? (0 as Bps),
+          priceSource: baseline.pricingDex,
+          status: pnl.status,
+        },
+      }
+
+      const latest = [...records]
+        .reverse()
+        .find(
+          (record) =>
+            record.kind === 'decided' &&
+            record.delegationId === delegation.delegationId &&
+            record.evidence,
+        )
+      if (latest?.kind === 'decided' && latest.evidence) {
+        const executed = records.some(
+          (record) =>
+            record.kind === 'executed' &&
+            record.delegationId === latest.delegationId &&
+            record.decisionId === latest.decisionId,
+        )
+        const skipped = records.find(
+          (record) =>
+            record.kind === 'not_executed' &&
+            record.delegationId === latest.delegationId &&
+            record.decisionId === latest.decisionId,
+        )
+        const outcome = executed ? 'executed' : skipped?.kind === 'not_executed'
+          ? skipped.reason === 'within_band' ? 'held' : 'skipped'
+          : undefined
+        const expectedOutcome = outcome ?? 'asked'
+        const cached = this.narrationCache.get(`${latest.delegationId}:${latest.decisionId}`)
+        const narration = cached?.outcome === expectedOutcome ? cached.narration : {
+          text: templateNarration({ ...latest.evidence, outcome: expectedOutcome }),
+          fallback: true,
+        }
+        this.statusValue = {
+          ...base,
+          ...(outcome
+            ? {
+                lastDecision: {
+                  delegationId: String(latest.delegationId),
+                  configHash: delegation.configHash,
+                  decisionId: latest.decisionId,
+                  outcome,
+                },
+              }
+            : {}),
+          narration: {
+            delegationId: String(latest.delegationId),
+            configHash: delegation.configHash,
+            decisionId: latest.decisionId,
+            ...narration,
+          },
+        }
+      } else {
+        this.statusValue = base
+      }
+
+      if (pending.open) {
+        const request = await this.reader.readPendingRequest(this.config.vault, pending, blockNumber)
+        if (!request) {
+          this.statusValue = { ...base, phase: 'awaiting_approval', lastError: 'pending event mismatch' }
+          return this.statusValue
+        }
+        const price = sameAddress(request.trade.tokenIn, delegation.quoteAsset)
+          ? PRICE_SCALE
+          : await this.reader.readSpotPriceE18(request.dex, request.trade.tokenIn, request.blockNumber)
+        const totalValue = (request.trade.amountIn * price) / PRICE_SCALE
+        const trust = computeTrust(records, id, delegation.trustFormulaVersion)
+        const trustCap =
+          (delegation.autoThreshold * BigInt(trust.discretionBps as number)) / BigInt(BPS_DENOMINATOR)
+        const effectiveCap = trustCap < delegation.autoThreshold ? trustCap : delegation.autoThreshold
+        this.statusValue = {
+          ...this.statusValue,
+          phase: 'awaiting_approval',
+          pending: {
+            delegationId: String(delegation.delegationId),
+            configHash: delegation.configHash,
+            stateNonce: String(delegation.stateNonce),
+            decisionId: pending.decisionId,
+            dex: request.dex,
+            trade: request.trade,
+            evidence: request.evidence,
+            expiresAt: String(pending.expiresAt),
+            effectiveCap: String(effectiveCap),
+            overBy: String(totalValue > effectiveCap ? totalValue - effectiveCap : 0n),
+            capSource: effectiveCap < delegation.autoThreshold ? 'trust' : 'user',
+          },
+        }
+      }
+      return this.statusValue
+    } catch (error) {
+      this.statusValue = {
+        ...this.statusValue,
+        phase: 'idle',
+        lastError: error instanceof Error ? error.message : 'status unavailable',
+      }
+      return this.statusValue
     }
-    return (total * BigInt(bandBps as number)) / BigInt(BPS_DENOMINATOR)
   }
 
-  private async readHoldings(): Promise<Holding[]> {
-    return Promise.all(
-      this.config.assets.map(async (asset) => ({
-        asset,
-        amount: await this.reader.readBalance(asset, this.config.vault),
-        decimals: 18,
-      })),
-    )
+  tick(): Promise<TickResult> {
+    if (this.inFlight) return this.inFlight
+    this.statusValue = { ...this.statusValue, phase: 'deciding' }
+    this.inFlight = this.runTick()
+      .catch((error) => {
+        this.statusValue = {
+          ...this.statusValue,
+          phase: this.statusValue.pending ? 'awaiting_approval' : 'idle',
+          lastError: error instanceof Error ? error.message : 'unknown error',
+        }
+        throw error
+      })
+      .finally(() => {
+        this.inFlight = undefined
+      })
+    return this.inFlight
   }
 
-  async tick(): Promise<TickResult> {
-    const cfg = this.config
-    const strategy = characterOf(cfg.characterId)
-    const delegation = await this.reader.readDelegation(cfg.vault)
-    const currentBlock = await this.reader.getBlockNumber()
-    const currentTimestamp = await this.reader.getBlockTimestamp()
+  private validateDelegation(delegation: OnChainDelegation, baseline: PortfolioBaseline): CharacterId | undefined {
+    const id = characterId(delegation.characterId)
+    if (!id || delegation.trustFormulaVersion !== SUPPORTED_TRUST_FORMULA_VERSION) return undefined
+    if (strategyHash(characterOf(id)) !== delegation.strategyHash) return undefined
+    if (delegation.delegationId !== baseline.delegationId) return undefined
+    if (!sameAddress(delegation.quoteAsset, baseline.quoteAsset)) return undefined
+    if (!sameAddress(delegation.targetAsset, baseline.targetAsset)) return undefined
+    if (delegation.allowedAssets.length !== 2 || delegation.allowedDexes.length !== 1) return undefined
+    if (!sameAddress(delegation.allowedDexes[0] as Address, baseline.pricingDex)) return undefined
+    if (!delegation.allowedAssets.some((asset) => sameAddress(asset, delegation.targetAsset))) return undefined
+    if (!delegation.allowedAssets.some((asset) => sameAddress(asset, delegation.quoteAsset))) return undefined
+    return id
+  }
 
-    // 1. 위임이 살아 있는지. 철회·만료면 아무것도 하지 않는다 (R3.4, R3.5).
-    //    만료는 볼트와 같은 단위(초)로 잰다 — 블록 번호와 섞으면 판정이 어긋난다.
-    if (delegation.expiry === 0n) return { kind: 'inactive', reason: 'revoked' }
-    if (currentTimestamp > delegation.expiry) return { kind: 'inactive', reason: 'expired' }
+  private async runTick(): Promise<TickResult> {
+    const { vault } = this.config
+    const blockNumber = await this.reader.getBlockNumber()
+    const [delegation, baseline, pending, blockTimestamp] = await Promise.all([
+      this.reader.readDelegation(vault, blockNumber),
+      this.reader.readPortfolioBaseline(vault, blockNumber),
+      this.reader.readPendingDecision(vault, blockNumber),
+      this.reader.getBlockTimestamp(blockNumber),
+    ])
+    const identity = {
+      delegationId: delegation.delegationId === 0n ? null : String(delegation.delegationId),
+      configHash: delegation.configHash,
+    } as const
+    this.statusValue = { phase: 'deciding', ...identity }
 
-    await this.expireStaleApprovals(currentBlock)
+    if (delegation.expiry === 0n) {
+      this.statusValue = { phase: 'idle', ...identity }
+      return { kind: 'inactive', reason: 'revoked' }
+    }
+    if (blockTimestamp > delegation.expiry) {
+      this.statusValue = { phase: 'idle', ...identity }
+      return { kind: 'inactive', reason: 'expired' }
+    }
 
-    const holdings = await this.readHoldings()
+    const id = this.validateDelegation(delegation, baseline)
+    if (!id || baseline.characterId !== id) {
+      this.statusValue = { phase: 'idle', ...identity, lastError: 'unsupported delegation' }
+      return { kind: 'inactive', reason: 'unsupported_delegation' }
+    }
 
-    // 2. 데이터를 사기 전에, 그 값이 교정 이득을 넘는지 먼저 따진다 (R4.7).
-    //    사고 나서 후회하면 이미 예산이 나간 뒤다.
+    const pendingResult = await this.handlePending(pending, delegation, blockTimestamp, blockNumber, id)
+    if (pendingResult) return pendingResult
+
+    const [targetBalance, quoteBalance, records] = await Promise.all([
+      this.reader.readBalance(delegation.targetAsset, vault, blockNumber),
+      this.reader.readBalance(delegation.quoteAsset, vault, blockNumber),
+      this.loadRecords(blockNumber),
+    ])
+    const holdings: Holding[] = [
+      { asset: delegation.targetAsset, amount: targetBalance, decimals: 18 },
+      { asset: delegation.quoteAsset, amount: quoteBalance, decimals: 18 },
+    ]
+
+    const cashflow = computePnl({
+      vault,
+      baseline,
+      current: { blockNumber, targetBalance, quoteBalance, targetPriceE18: baseline.targetPriceE18 },
+      operatingSpent: delegation.operatingSpent,
+      records,
+    })
+    if (cashflow.status === 'cashflow_unknown') {
+      this.statusValue = { phase: 'idle', ...identity, lastError: 'cashflow_unknown' }
+      return { kind: 'inactive', reason: 'cashflow_unknown' }
+    }
+
+    const strategy = characterOf(id)
     const dataCost = await this.meter.quote({ kind: 'price_data' })
     const correctable = this.roughCorrectableValue(holdings, strategy.bandBps)
     if (correctable !== undefined && dataCost >= correctable) {
       return { kind: 'skipped', reason: 'cost_exceeds_benefit' }
     }
 
-    // 3. 가격을 사서 스냅샷으로 고정한다.
+    try {
+      await this.meter.acquire(
+        { kind: 'price_data' },
+        remaining(delegation.budget, delegation.budgetSpent),
+        remaining(delegation.operatingCap, delegation.operatingSpent),
+      )
+    } catch (error) {
+      this.meter.discard()
+      if (error instanceof BudgetExhaustedError) return { kind: 'skipped', reason: 'budget_exhausted' }
+      return { kind: 'skipped', reason: 'stale_price' }
+    }
+
     let snapshot: PriceSnapshot
     try {
-      await this.meter.charge({ kind: 'price_data' })
-      snapshot = await this.acquireSnapshot(delegation.quoteAsset, currentBlock)
-    } catch (e) {
-      this.meter.discard()
-      if (e instanceof BudgetExhaustedError) {
-        return { kind: 'skipped', reason: 'budget_exhausted' }
-      }
-      return { kind: 'skipped', reason: 'stale_price' }
-    }
-
-    if (!isFresh(snapshot, currentBlock)) {
+      snapshot = await this.acquireSnapshot(delegation, blockNumber)
+    } catch {
       this.meter.discard()
       return { kind: 'skipped', reason: 'stale_price' }
     }
+    if (!isFresh(snapshot, blockNumber)) {
+      this.meter.discard()
+      return { kind: 'skipped', reason: 'stale_price' }
+    }
+    this.lastSnapshot = snapshot
 
-    // 4. 판단. 순수 함수이고 신뢰 점수를 받지 않는다 (R4.8).
-    const decision = decide({
-      target: cfg.target,
+    const pnl = computePnl({
+      vault,
+      baseline,
+      current: { blockNumber, targetBalance, quoteBalance, targetPriceE18: snapshot.prices[0]!.priceE18 },
+      operatingSpent: delegation.operatingSpent,
+      records,
+    })
+    this.statusValue = {
+      phase: 'deciding',
+      ...identity,
+      snapshot: {
+        delegationId: String(delegation.delegationId),
+        configHash: delegation.configHash,
+        blockNumber: String(blockNumber),
+        targetBalance: String(targetBalance),
+        quoteBalance: String(quoteBalance),
+        targetPriceE18: String(snapshot.prices[0]!.priceE18),
+        valueQuote: String(pnl.currentValueQuote),
+      },
+      lossReport: {
+        delegationId: String(delegation.delegationId),
+        configHash: delegation.configHash,
+        reportId: pnl.reportId,
+        baselineBlock: String(baseline.blockNumber),
+        currentBlock: String(blockNumber),
+        baselineValueQuote: String(baseline.valueQuote),
+        currentValueQuote: String(pnl.currentValueQuote),
+        operatingSpent: String(delegation.operatingSpent),
+        pnlQuote: String(pnl.pnlQuote ?? 0n),
+        pnlBps: pnl.pnlBps ?? (0 as Bps),
+        priceSource: baseline.pricingDex,
+        status: pnl.status,
+      },
+    }
+
+    const target = {
+      weights: [
+        { asset: delegation.targetAsset, bps: delegation.targetAssetBps },
+        { asset: delegation.quoteAsset, bps: (BPS_DENOMINATOR - (delegation.targetAssetBps as number)) as Bps },
+      ],
+    }
+    const baseInput = {
+      target,
       strategy,
       holdings,
       price: snapshot,
+      currentBlock: blockNumber,
+      slippageToleranceBps: delegation.slippageToleranceBps,
+    } as const
+    const preliminary = decide({
+      ...baseInput,
       costEstimate: {
-        gasValue: cfg.gasValueEstimate,
+        gasValue: this.config.gasValueEstimate,
         slippageValue: 0n,
         operatingValue: this.meter.pendingTotal(),
       },
-      currentBlock,
-      slippageToleranceBps: cfg.slippageToleranceBps,
     })
 
-    const evidence = encodeEvidence(decision.evidence)
+    let slippageValue = 0n
+    let quotedAmountOut: bigint | undefined
+    const candidate = preliminary.trades[0]
+    if (preliminary.kind === 'rebalance' && candidate) {
+      try {
+        const amountOut = await this.reader.readAmountOut(
+          delegation.allowedDexes[0] as Address,
+          candidate.tokenIn,
+          candidate.amountIn,
+          blockNumber,
+        )
+        quotedAmountOut = amountOut
+        const priceOf = new Map(snapshot.prices.map((price) => [price.asset.toLowerCase(), price.priceE18]))
+        const valueIn = (candidate.amountIn * (priceOf.get(candidate.tokenIn.toLowerCase()) ?? 0n)) / PRICE_SCALE
+        const valueOut = (amountOut * (priceOf.get(candidate.tokenOut.toLowerCase()) ?? 0n)) / PRICE_SCALE
+        slippageValue = valueIn > valueOut ? valueIn - valueOut : 0n
+      } catch {
+        this.meter.discard()
+        return { kind: 'skipped', reason: 'stale_price' }
+      }
+    }
 
-    // 5. 거래가 없으면 그 사실을 남긴다. 실행되지 않은 판단도 기록한다 (R7.4).
+    const decision = decide({
+      ...baseInput,
+      costEstimate: {
+        gasValue: this.config.gasValueEstimate,
+        slippageValue,
+        operatingValue: this.meter.pendingTotal(),
+      },
+    })
+    const write = {
+      vault,
+      delegationId: delegation.delegationId,
+      stateNonce: delegation.stateNonce,
+      decisionId: decision.id,
+      evidence: encodeEvidence(decision.evidence),
+      priceCost: this.meter.pendingTotal(),
+    }
+
     if (decision.kind !== 'rebalance') {
-      await this.meter.commit(decision.id)
-      await this.writer.recordNotExecuted({
-        vault: cfg.vault,
-        decisionId: decision.id,
-        characterId: cfg.characterId,
-        evidence,
-        reason: skipReasonCode(decision.skipReason ?? 'within_band'),
-      })
+      try {
+        await this.writer.recordNotExecuted({
+          ...write,
+          reason: skipReasonCode(decision.skipReason ?? 'within_band'),
+        })
+      } finally {
+        this.meter.discard()
+      }
+      const outcome = decision.kind === 'hold' ? 'held' : 'skipped'
+      this.statusValue = {
+        ...this.statusValue,
+        phase: 'idle',
+        lastDecision: {
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          decisionId: decision.id,
+          outcome,
+        },
+      }
+      await this.updateNarration(delegation, decision.id, { ...decision.evidence, outcome })
       return { kind: 'skipped', reason: decision.skipReason ?? 'within_band', decisionId: decision.id }
     }
 
-    // 6. 신뢰는 여기서만 쓰인다 — 거래 내용이 아니라 승인 경계에만 영향을 준다.
-    const trust = computeTrust(await this.loadRecords())
+    const trust = computeTrust(records, id, delegation.trustFormulaVersion)
     const gate = resolveGate(decision, trust, {
       maxTradeValue: delegation.maxTradeValue,
       autoThreshold: delegation.autoThreshold,
       budget: delegation.budget,
-      budgetSpent: await this.reader.readBudgetSpent(cfg.vault),
+      budgetSpent: delegation.budgetSpent,
       expiry: delegation.expiry,
       allowedAssets: delegation.allowedAssets,
       allowedDexes: delegation.allowedDexes,
-    }, currentTimestamp)
-
-    const dex = delegation.allowedDexes[0] ?? cfg.pool
-
-    if (gate.action === 'reject') {
-      await this.meter.commit(decision.id)
-      await this.writer.recordNotExecuted({
-        vault: cfg.vault,
-        decisionId: decision.id,
-        characterId: cfg.characterId,
-        evidence,
-        reason: gate.reason === 'expired' ? NOT_EXECUTED_REASON.expired : NOT_EXECUTED_REASON.budget_exhausted,
-      })
-      return { kind: 'rejected', decisionId: decision.id, reason: gate.reason }
-    }
-
-    if (gate.action === 'ask') {
-      // 임계값을 넘으면 멈추고 사용자에게 묻는다 (R5.2).
-      await this.meter.commit(decision.id)
-      this.pending.set(decision.id, {
-        decision,
-        dex,
-        createdAtBlock: currentBlock,
-        expiresAtBlock: currentBlock + cfg.approvalTtlBlocks,
-      })
-      return { kind: 'asked', decisionId: decision.id, overBy: gate.overBy, effectiveCap: gate.effectiveCap }
-    }
-
-    // 7. 임계값 안이면 알아서 실행하고 사후 보고한다 (R5.1).
-    const trade = decision.trades[0]
-    if (!trade) {
+    }, blockTimestamp)
+    const decidedTrade = decision.trades[0]
+    const trade = decidedTrade && quotedAmountOut !== undefined
+      ? {
+          ...decidedTrade,
+          minAmountOut:
+            (quotedAmountOut * BigInt(BPS_DENOMINATOR - (delegation.slippageToleranceBps as number))) /
+            BigInt(BPS_DENOMINATOR),
+        }
+      : decidedTrade
+    const dex = delegation.allowedDexes[0]
+    if (!trade || !dex) {
       this.meter.discard()
       return { kind: 'skipped', reason: 'within_band', decisionId: decision.id }
     }
 
-    const txHash = await this.writer.execute({
-      vault: cfg.vault,
-      dex,
-      trade,
-      decisionId: decision.id,
-      characterId: cfg.characterId,
-      evidence,
-    })
-    await this.meter.commit(decision.id)
-
-    return { kind: 'executed', decisionId: decision.id, txHash, value: decision.totalValue }
-  }
-
-  /** 사용자가 승인한 요청을 실행한다. */
-  async approve(decisionId: DecisionId): Promise<TickResult> {
-    const p = this.pending.get(decisionId)
-    if (!p) return { kind: 'rejected', decisionId, reason: 'unknown_request' }
-
-    const trade = p.decision.trades[0]
-    if (!trade) return { kind: 'rejected', decisionId, reason: 'no_trade' }
-
-    const txHash = await this.writer.execute({
-      vault: this.config.vault,
-      dex: p.dex,
-      trade,
-      decisionId,
-      characterId: this.config.characterId,
-      evidence: encodeEvidence(p.decision.evidence),
-    })
-    this.pending.delete(decisionId)
-    return { kind: 'executed', decisionId, txHash, value: p.decision.totalValue }
-  }
-
-  /** 사용자가 거절한다. 거절도 트랙레코드에 남는다 (R5.5). */
-  async reject(decisionId: DecisionId): Promise<void> {
-    const p = this.pending.get(decisionId)
-    if (!p) return
-    this.pending.delete(decisionId)
-    await this.writer.recordNotExecuted({
-      vault: this.config.vault,
-      decisionId,
-      characterId: this.config.characterId,
-      evidence: encodeEvidence(p.decision.evidence),
-      reason: NOT_EXECUTED_REASON.rejected,
-    })
-  }
-
-  /** 답이 없는 요청은 만료시킨다. 만료 사실도 남긴다 (R5.4). */
-  private async expireStaleApprovals(currentBlock: bigint): Promise<void> {
-    for (const [id, p] of [...this.pending]) {
-      if (currentBlock > p.expiresAtBlock) {
-        this.pending.delete(id)
-        await this.writer.recordNotExecuted({
-          vault: this.config.vault,
-          decisionId: id,
-          characterId: this.config.characterId,
-          evidence: encodeEvidence(p.decision.evidence),
-          reason: NOT_EXECUTED_REASON.expired,
-        })
+    if (gate.action === 'reject') {
+      try {
+        await this.writer.recordNotExecuted({ ...write, reason: gateReasonCode(gate.reason) })
+      } finally {
+        this.meter.discard()
       }
+      this.statusValue = {
+        ...this.statusValue,
+        phase: 'idle',
+        lastDecision: {
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          decisionId: decision.id,
+          outcome: 'skipped',
+        },
+      }
+      await this.updateNarration(delegation, decision.id, { ...decision.evidence, outcome: 'skipped' })
+      return { kind: 'rejected', decisionId: decision.id, reason: gate.reason }
+    }
+
+    if (gate.action === 'ask') {
+      try {
+        await this.writer.propose({ ...write, dex, trade })
+        this.statusValue = {
+          ...this.statusValue,
+          phase: 'awaiting_approval',
+          pending: {
+            delegationId: String(delegation.delegationId),
+            configHash: delegation.configHash,
+            stateNonce: String(delegation.stateNonce + 1n),
+            decisionId: decision.id,
+            dex,
+            trade,
+            evidence: decision.evidence,
+            expiresAt: String(blockTimestamp + delegation.approvalTtlSeconds),
+            effectiveCap: String(gate.effectiveCap),
+            overBy: String(gate.overBy),
+            capSource: gate.capSource,
+          },
+        }
+      } finally {
+        this.meter.discard()
+      }
+      await this.updateNarration(delegation, decision.id, decision.evidence)
+      return { kind: 'asked', decisionId: decision.id, overBy: gate.overBy, effectiveCap: gate.effectiveCap }
+    }
+
+    try {
+      const txHash = await this.writer.executeAuto({ ...write, dex, trade })
+      this.statusValue = {
+        ...this.statusValue,
+        phase: 'idle',
+        lastDecision: {
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          decisionId: decision.id,
+          outcome: 'executed',
+        },
+      }
+      await this.updateNarration(delegation, decision.id, { ...decision.evidence, outcome: 'executed' })
+      return { kind: 'executed', decisionId: decision.id, txHash, value: decision.totalValue }
+    } catch (error) {
+      await this.writer.recordNotExecuted({ ...write, reason: NOT_EXECUTED_REASON.execution_failed })
+      this.statusValue = {
+        ...this.statusValue,
+        phase: 'idle',
+        lastDecision: {
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          decisionId: decision.id,
+          outcome: 'skipped',
+        },
+      }
+      await this.updateNarration(delegation, decision.id, { ...decision.evidence, outcome: 'skipped' })
+      return {
+        kind: 'rejected',
+        decisionId: decision.id,
+        reason: error instanceof Error ? error.message : 'execution_failed',
+      }
+    } finally {
+      this.meter.discard()
     }
   }
 
-  private async acquireSnapshot(quoteAsset: Address, blockNumber: bigint): Promise<PriceSnapshot> {
-    const prices = await Promise.all(
-      this.config.assets.map(async (asset) => ({
-        asset,
-        // quote 자산은 자기 자신에 대해 1이다. 주소 표기가 섞여 들어오므로 정규화해 비교한다.
-        priceE18: sameAddress(asset, quoteAsset)
-          ? 1_000_000_000_000_000_000n
-          : await this.reader.readSpotPriceE18(this.config.pool, asset),
-      })),
-    )
-    const snapshot: PriceSnapshot = {
+  private async handlePending(
+    pending: PendingDecision,
+    delegation: OnChainDelegation,
+    blockTimestamp: bigint,
+    blockNumber: bigint,
+    id: CharacterId,
+  ): Promise<TickResult | undefined> {
+    if (!pending.open) {
+      return undefined
+    }
+    if (
+      pending.delegationId !== delegation.delegationId ||
+      pending.proposalNonce + 1n !== delegation.stateNonce
+    ) {
+      return { kind: 'inactive', reason: 'unsupported_delegation' }
+    }
+    if (blockTimestamp <= pending.expiresAt) {
+      const request = await this.reader.readPendingRequest(this.config.vault, pending, blockNumber)
+      if (!request) {
+        this.statusValue = {
+          phase: 'awaiting_approval',
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          lastError: 'pending event mismatch',
+        }
+        return { kind: 'awaiting_approval', decisionId: pending.decisionId, expiresAt: pending.expiresAt }
+      }
+      const records = await this.loadRecords(blockNumber)
+      const price = sameAddress(request.trade.tokenIn, delegation.quoteAsset)
+        ? PRICE_SCALE
+        : await this.reader.readSpotPriceE18(request.dex, request.trade.tokenIn, request.blockNumber)
+      const totalValue = (request.trade.amountIn * price) / PRICE_SCALE
+      const trust = computeTrust(records, id, delegation.trustFormulaVersion)
+      const trustCap =
+        (delegation.autoThreshold * BigInt(trust.discretionBps as number)) / BigInt(BPS_DENOMINATOR)
+      const effectiveCap = trustCap < delegation.autoThreshold ? trustCap : delegation.autoThreshold
+      const view: PendingView = {
+        delegationId: String(delegation.delegationId),
+        configHash: delegation.configHash,
+        stateNonce: String(delegation.stateNonce),
+        decisionId: pending.decisionId,
+        dex: request.dex,
+        trade: request.trade,
+        evidence: request.evidence,
+        expiresAt: String(pending.expiresAt),
+        effectiveCap: String(effectiveCap),
+        overBy: String(totalValue > effectiveCap ? totalValue - effectiveCap : 0n),
+        capSource: effectiveCap < delegation.autoThreshold ? 'trust' : 'user',
+      }
+      this.statusValue = {
+        phase: 'awaiting_approval',
+        delegationId: String(delegation.delegationId),
+        configHash: delegation.configHash,
+        pending: view,
+        narration: {
+          delegationId: String(delegation.delegationId),
+          configHash: delegation.configHash,
+          decisionId: pending.decisionId,
+          text: templateNarration(request.evidence),
+          fallback: true,
+        },
+      }
+      return { kind: 'awaiting_approval', decisionId: pending.decisionId, expiresAt: pending.expiresAt }
+    }
+    await this.writer.expire({
+      vault: this.config.vault,
+      delegationId: delegation.delegationId,
+      stateNonce: delegation.stateNonce,
+      decisionId: pending.decisionId,
+    })
+    this.statusValue = {
+      phase: 'idle',
+      delegationId: String(delegation.delegationId),
+      configHash: delegation.configHash,
+      lastDecision: {
+        delegationId: String(delegation.delegationId),
+        configHash: delegation.configHash,
+        decisionId: pending.decisionId,
+        outcome: 'skipped',
+      },
+    }
+    return { kind: 'skipped', reason: 'expired', decisionId: pending.decisionId }
+  }
+
+  private async updateNarration(
+    delegation: OnChainDelegation,
+    decisionId: DecisionId,
+    evidence: DecisionEvidence,
+  ): Promise<void> {
+    const key = `${delegation.delegationId}:${decisionId}`
+    const cached = this.narrationCache.get(key)
+    let result = cached?.outcome === evidence.outcome ? cached.narration : undefined
+    if (!result) {
+      const fallback = { text: templateNarration(evidence), fallback: true } as const
+      if (!this.llm) {
+        result = fallback
+      } else {
+        try {
+          const blockNumber = await this.reader.getBlockNumber()
+          const alreadyCharged = await this.reader.readNarrationCostRecorded(
+            this.config.vault,
+            delegation.delegationId,
+            decisionId,
+            blockNumber,
+          )
+          if (alreadyCharged) {
+            result = fallback
+          } else {
+            const latest = await this.reader.readDelegation(this.config.vault, blockNumber)
+            const receipt = await this.meter.acquire(
+              { kind: 'narration' },
+              remaining(latest.budget, latest.budgetSpent),
+              remaining(latest.operatingCap, latest.operatingSpent),
+            )
+            await this.writer.chargeNarrationCost({
+              vault: this.config.vault,
+              delegationId: delegation.delegationId,
+              decisionId,
+              amount: receipt.amount,
+            })
+            this.meter.discard()
+            result = await narrate(evidence, PERSONAS[characterId(delegation.characterId) ?? 'timid'], this.llm)
+          }
+        } catch {
+          this.meter.discard()
+          result = fallback
+        }
+      }
+      this.narrationCache.set(key, { narration: result, outcome: evidence.outcome })
+    }
+    this.statusValue = {
+      ...this.statusValue,
+      narration: {
+        delegationId: String(delegation.delegationId),
+        configHash: delegation.configHash,
+        decisionId,
+        ...result,
+      },
+    }
+  }
+
+  private roughCorrectableValue(holdings: readonly Holding[], bandBps: Bps): bigint | undefined {
+    if (!this.lastSnapshot) return undefined
+    const priceOf = new Map(this.lastSnapshot.prices.map((price) => [price.asset.toLowerCase(), price.priceE18]))
+    let total = 0n
+    for (const holding of holdings) {
+      const price = priceOf.get(holding.asset.toLowerCase())
+      if (price === undefined) return undefined
+      total += (holding.amount * price) / PRICE_SCALE
+    }
+    return (total * BigInt(bandBps as number)) / BigInt(BPS_DENOMINATOR)
+  }
+
+  private async acquireSnapshot(delegation: OnChainDelegation, blockNumber: bigint): Promise<PriceSnapshot> {
+    const pool = delegation.allowedDexes[0] as Address
+    const targetPrice = await this.reader.readSpotPriceE18(pool, delegation.targetAsset, blockNumber)
+    return {
       blockNumber,
-      pool: this.config.pool,
-      quoteAsset,
-      prices,
+      pool,
+      quoteAsset: delegation.quoteAsset,
+      prices: [
+        { asset: delegation.targetAsset, priceE18: targetPrice },
+        { asset: delegation.quoteAsset, priceE18: PRICE_SCALE },
+      ],
       maxAgeBlocks: this.config.maxAgeBlocks,
     }
-    this.lastSnapshot = snapshot
-    return snapshot
   }
+
 }

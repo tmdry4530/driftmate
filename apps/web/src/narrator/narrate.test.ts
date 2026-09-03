@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Address, Bps, DecisionEvidence, Persona } from '@soon/shared'
 import { bps } from '@soon/engine'
-import { type LlmClient, narrate, templateNarration, validateNarration } from './narrate.js'
+import { type LlmClient, narrate, templateNarration, validateNarration } from '@soon/keeper'
 
 const TOKEN = '0x1111111111111111111111111111111111111111' as Address
 const USDC = '0x2222222222222222222222222222222222222222' as Address

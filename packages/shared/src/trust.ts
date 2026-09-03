@@ -1,6 +1,7 @@
 import type { Bps, DecisionId, FormulaVersion, Int, Score } from './primitives.js'
 
 export type Contribution = Readonly<{
+  delegationId: bigint
   decisionId?: DecisionId
   blockNumber: bigint
   delta: Int

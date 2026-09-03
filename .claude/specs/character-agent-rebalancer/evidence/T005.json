@@ -1,0 +1,27 @@
+{
+  "task_id": "T005",
+  "spec_hash": "43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937",
+  "status": "verified",
+  "attempt": 1,
+  "changed_files": [
+    "packages/shared/src/record.ts",
+    "apps/keeper/src/abi.ts",
+    "apps/keeper/src/ports.ts",
+    "apps/keeper/src/viemAdapters.ts",
+    "apps/keeper/src/records.ts",
+    "apps/keeper/src/records.test.ts",
+    "apps/keeper/src/index.ts",
+    "apps/keeper/e2e/run.ts",
+    "packages/engine/src/trust.ts",
+    "packages/engine/src/trust.test.ts",
+    "apps/web/src/performance.ts",
+    "apps/web/src/performance.test.ts",
+    "apps/web/src/components/TrackRecordList.tsx",
+    "apps/web/src/hooks/useVault.ts",
+    "apps/web/src/App.tsx"
+  ],
+  "verification": [
+    { "command": "pnpm vitest run apps/keeper/src/records.test.ts", "exit_code": 0, "summary": "1 test passed; duplicate decision IDs remain isolated by delegation and invalid evidence preserves joins" },
+    { "command": "pnpm typecheck", "exit_code": 0, "summary": "TypeScript project references passed" }
+  ]
+}

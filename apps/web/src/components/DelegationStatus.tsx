@@ -10,6 +10,8 @@ export function DelegationStatus({
   budget,
   budgetSpent,
   operatingCap,
+  operatingSpent,
+  expiry,
   onRevoke,
   canRevoke,
   busy,
@@ -17,6 +19,8 @@ export function DelegationStatus({
   budget: bigint | undefined
   budgetSpent: bigint | undefined
   operatingCap: bigint | undefined
+  operatingSpent: bigint | undefined
+  expiry: bigint | undefined
   onRevoke: () => void
   canRevoke: boolean
   busy: boolean
@@ -37,6 +41,12 @@ export function DelegationStatus({
       {operatingCap !== undefined && (
         <div className="row"><span className="k">그중 운영비 한도</span><span>{formatQuote(operatingCap)}</span></div>
       )}
+      {operatingSpent !== undefined && (
+        <div className="row"><span className="k">누적 운영비</span><span>{formatQuote(operatingSpent)}</span></div>
+      )}
+      {expiry !== undefined && (
+        <div className="row"><span className="k">위임 만료</span><span>{new Date(Number(expiry) * 1000).toLocaleString('ko-KR')}</span></div>
+      )}
 
       {(exhausted || nearlyOut) && (
         <div className="notice" style={{ marginTop: 12 }}>
@@ -50,7 +60,7 @@ export function DelegationStatus({
         위임 철회하기
       </button>
       <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>
-        철회하면 자동 실행이 즉시 멈춰요. 예치한 자산은 언제든 그대로 꺼낼 수 있어요.
+        철회하면 자동 실행이 즉시 멈춰요. 추가 예치나 인출도 기존 위임을 끝내며, 인출 자산은 owner에게만 돌아가요.
       </p>
     </div>
   )

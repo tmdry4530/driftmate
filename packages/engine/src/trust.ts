@@ -1,6 +1,6 @@
 import type {
+  CharacterId,
   Contribution,
-  DecisionId,
   FormulaVersion,
   TrackRecord,
   TrustResult,
@@ -61,14 +61,26 @@ function ordered(records: readonly TrackRecord[]): TrackRecord[] {
  *
  * 접속 횟수·결제 이력은 TrackRecord 타입에 존재하지 않아 입력 경로 자체가 없다 (R10.3).
  */
-export function computeTrust(records: readonly TrackRecord[]): TrustResult {
-  const sorted = ordered(records)
+export function computeTrust(
+  records: readonly TrackRecord[],
+  characterId: CharacterId,
+  formulaVersion: number,
+): TrustResult {
+  if (formulaVersion !== 1) throw new RangeError(`unsupported trust formula version: ${formulaVersion}`)
+  const sorted = ordered(
+    records.filter(
+      (record) =>
+        record.characterId === characterId &&
+        (record.kind === 'disappointed' || record.kind === 'baseline' || record.trustFormulaVersion === formulaVersion),
+    ),
+  )
 
   // 판단별 운영비를 먼저 모은다. 성과는 비용을 뺀 뒤에 평가한다 (R10.2, R7.7).
-  const costByDecision = new Map<DecisionId, bigint>()
+  const costByDecision = new Map<string, bigint>()
   for (const r of sorted) {
     if (r.kind === 'cost') {
-      costByDecision.set(r.decisionId, (costByDecision.get(r.decisionId) ?? 0n) + r.amount)
+      const key = `${r.delegationId}:${r.decisionId}`
+      costByDecision.set(key, (costByDecision.get(key) ?? 0n) + r.amount)
     }
   }
 
@@ -78,10 +90,10 @@ export function computeTrust(records: readonly TrackRecord[]): TrustResult {
   for (const r of sorted) {
     switch (r.kind) {
       case 'executed': {
-        if (r.valueQuote === 0n) break
-        const cost = costByDecision.get(r.decisionId) ?? 0n
+        if (r.valueInQuote === 0n) break
+        const cost = costByDecision.get(`${r.delegationId}:${r.decisionId}`) ?? 0n
         const friction = r.frictionQuote + cost
-        const ratioBps = Number((friction * 10_000n) / r.valueQuote)
+        const ratioBps = Number((friction * 10_000n) / r.valueInQuote)
 
         const delta =
           ratioBps <= EFFICIENT_BPS
@@ -93,6 +105,7 @@ export function computeTrust(records: readonly TrackRecord[]): TrustResult {
         if (delta !== 0) {
           total += delta
           contributions.push({
+            delegationId: r.delegationId,
             decisionId: r.decisionId,
             blockNumber: r.blockNumber,
             delta: int(delta),
@@ -114,6 +127,7 @@ export function computeTrust(records: readonly TrackRecord[]): TrustResult {
         if (delta !== 0) {
           total += delta
           contributions.push({
+            delegationId: r.delegationId,
             decisionId: r.decisionId,
             blockNumber: r.blockNumber,
             delta: int(delta),
@@ -125,6 +139,7 @@ export function computeTrust(records: readonly TrackRecord[]): TrustResult {
       case 'disappointed': {
         total += WEIGHTS.disappointed
         contributions.push({
+          delegationId: r.delegationId,
           blockNumber: r.blockNumber,
           delta: int(WEIGHTS.disappointed),
           reason: '사용자가 실망을 표시함',
@@ -135,6 +150,7 @@ export function computeTrust(records: readonly TrackRecord[]): TrustResult {
       // 비용은 위에서 순성과 계산에 이미 반영된다.
       case 'decided':
       case 'cost':
+      case 'baseline':
         break
     }
   }

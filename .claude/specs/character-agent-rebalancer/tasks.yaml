@@ -1,0 +1,290 @@
+spec_id: INT-2026-0001
+execution_policy:
+  max_task_attempts: 3
+  max_same_failure_repeats: 2
+tasks:
+  - id: T000
+    title: Foundry 실행 환경 복구
+    outcome: forge, anvil, cast를 PATH에서 실행할 수 있다.
+    requirements: []
+    depends_on: []
+    context:
+      files: [package.json, packages/contracts/foundry.toml]
+      symbols: []
+    scope:
+      allowed_paths: []
+      forbidden_paths: [package.json, pnpm-lock.yaml, packages/contracts]
+      must_preserve: [저장소 파일, 전역 Git 설정]
+    capabilities:
+      network: true
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [forge --version, anvil --version, cast --version]
+      full: [forge --version, anvil --version, cast --version]
+    evidence: evidence/T000.json
+
+  - id: T001
+    title: 공유 위임 상태 타입과 해시 규약
+    outcome: 위임 상태와 ABI 해시가 웹, Keeper, Solidity 고정 벡터에서 일치한다.
+    requirements: [R2.3, R2.4, R2.5, R3.1, R3.2, R3.3, R7.1, R10.1]
+    depends_on: []
+    context:
+      files: [packages/shared/src, packages/engine/src/characters.ts, apps/keeper/src]
+      symbols: [Delegation, PendingDecision, PortfolioBaseline, KeeperStatus, LossReport, strategyHash]
+    scope:
+      allowed_paths: [packages/shared/src, packages/engine/src/characters.ts, apps/keeper/src/delegation.ts, apps/keeper/src/delegation.test.ts]
+      forbidden_paths: [packages/contracts, apps/web]
+      must_preserve: [packages/shared 타입 전용, packages/engine 런타임 의존성 0, normalizeAddress 사용]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm vitest run packages/shared packages/engine/src]
+      full: [pnpm vitest run packages/shared packages/engine/src, pnpm typecheck]
+    evidence: evidence/T001.json
+
+  - id: T002
+    title: AgentVault 위임 원문과 세션 기준점
+    outcome: 전체 위임 원문과 세션 기준점이 온체인에 저장되고 입출금과 재위임이 안전하게 상태를 종결한다.
+    requirements: [R1.2, R2.3, R2.4, R2.5, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R9.4]
+    depends_on: [T000, T001]
+    context:
+      files: [packages/contracts/src/AgentVault.sol, packages/contracts/test/AgentVaultDelegation.t.sol, packages/contracts/script/DeployMocks.s.sol]
+      symbols: [Delegation, PortfolioBaseline, setDelegation, deposit, withdraw, revoke]
+    scope:
+      allowed_paths: [packages/contracts/src/AgentVault.sol, packages/contracts/test, packages/contracts/script/DeployMocks.s.sol]
+      forbidden_paths: [apps, packages/engine, packages/shared]
+      must_preserve: [owner 전용 인출, 실자금 금지, 정확히 2자산 1 DEX MVP]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: test-only
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm contracts:test -- --match-contract AgentVaultDelegationTest]
+      full: [pnpm contracts:test -- --match-contract AgentVaultDelegationTest]
+    evidence: evidence/T002.json
+
+  - id: T003
+    title: 온체인 pending과 owner 승인 상태 머신
+    outcome: 자동 실행 한도와 owner 직접 승인, 거절, 만료, 실패 종결이 온체인 상태로 강제된다.
+    requirements: [R3.6, R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R7.4]
+    depends_on: [T002]
+    context:
+      files: [packages/contracts/src/AgentVault.sol, packages/contracts/test/AgentVaultExecute.t.sol]
+      symbols: [executeAuto, propose, executeApproved, reject, expire, finalizePendingFailure, recordNotExecuted]
+    scope:
+      allowed_paths: [packages/contracts/src/AgentVault.sol, packages/contracts/test/AgentVaultExecute.t.sol]
+      forbidden_paths: [apps, packages/engine, packages/shared]
+      must_preserve: [owner 직접 승인, autoThreshold와 maxTradeValue 온체인 강제, 중복 실행 방지]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: test-only
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm contracts:test -- --match-contract AgentVaultExecuteTest]
+      full: [pnpm contracts:test -- --match-contract AgentVaultExecuteTest]
+    evidence: evidence/T003.json
+
+  - id: T004
+    title: 비용 원자성과 양방향 실행 기록
+    outcome: 가격 및 설명 비용과 실행 마찰, 실망 기록이 세션별로 한 번만 원자적으로 기록된다.
+    requirements: [R7.1, R7.4, R7.6, R7.7, R9.7, R10.6, R11.1, R11.2, R11.3, R11.4, R11.5, R11.6]
+    depends_on: [T003]
+    context:
+      files: [packages/contracts/src/AgentVault.sol, packages/contracts/src/MockERC3009.sol, packages/contracts/test]
+      symbols: [CostCharged, Executed, Disappointed, chargeNarrationCost, signalDisappointment]
+    scope:
+      allowed_paths: [packages/contracts/src/AgentVault.sol, packages/contracts/src/MockERC3009.sol, packages/contracts/test/AgentVaultBudget.t.sol, packages/contracts/test/AgentVaultExecute.t.sol, packages/contracts/test/Mocks.t.sol]
+      forbidden_paths: [apps, packages/engine, packages/shared]
+      must_preserve: [단일 전체 예산, 운영비 상한, ERC-3009 검증 토큰]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: test-only
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm contracts:test -- --match-contract AgentVaultBudgetTest, pnpm contracts:test -- --match-contract AgentVaultExecuteTest, pnpm contracts:test -- --match-contract MockERC3009Test]
+      full: [pnpm contracts:test]
+    evidence: evidence/T004.json
+
+  - id: T005
+    title: ABI 체인 어댑터와 이벤트 읽기 모델
+    outcome: 이벤트를 복합 식별자로 조인해 손상된 evidence에서도 캐릭터, 결과, 비용 연결을 보존한다.
+    requirements: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R10.1, R10.9, R11.7]
+    depends_on: [T004]
+    context:
+      files: [packages/shared/src/record.ts, apps/keeper/src]
+      symbols: [TrackRecord, loadTrackRecords, ViemChainReader, ViemVaultWriter]
+    scope:
+      allowed_paths: [packages/shared/src/record.ts, apps/keeper/src, apps/keeper/e2e/run.ts, packages/engine/src, apps/web/src]
+      forbidden_paths: [packages/contracts/src]
+      must_preserve: [이벤트가 트랙레코드 단일 원천, delegationId와 decisionId 복합 키]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm vitest run apps/keeper/src/records.test.ts]
+      full: [pnpm vitest run apps/keeper/src/records.test.ts, pnpm typecheck]
+    evidence: evidence/T005.json
+
+  - id: T006
+    title: 캐릭터별 신뢰 실행 효율과 세션 손익
+    outcome: 신뢰, 실행 효율, 손익이 캐릭터와 위임 세션별로 재현 가능하게 계산된다.
+    requirements: [R7.7, R9.2, R9.3, R9.4, R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8, R10.9, R11.7]
+    depends_on: [T005]
+    context:
+      files: [packages/engine/src/trust.ts, packages/engine/src/pnl.ts, apps/web/src/performance.ts]
+      symbols: [computeTrust, computePerformance, computePnl, reportId]
+    scope:
+      allowed_paths: [packages/shared/src, packages/engine/src, apps/web/src/performance.ts, apps/web/src/performance.test.ts, apps/keeper/src/keeper.ts, apps/keeper/e2e/run.ts, apps/web/src/App.tsx]
+      forbidden_paths: [packages/contracts/src]
+      must_preserve: [시장 손익은 신뢰 입력에서 제외, 미지원 공식 fail-closed, 신뢰는 거래 내용 불변]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm vitest run packages/engine/src apps/web/src/performance.test.ts]
+      full: [pnpm vitest run packages/engine/src apps/web/src/performance.test.ts, pnpm typecheck]
+    evidence: evidence/T006.json
+
+  - id: T007
+    title: Keeper 온체인 설정 소비와 결정 파이프라인
+    outcome: Keeper가 온체인 위임만 소비하고 동일 블록 가격과 견적으로 판단을 한 번만 안전하게 종결한다.
+    requirements: [R2.3, R3.1, R3.2, R3.3, R3.4, R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7, R4.8, R5.1, R5.2, R5.3, R5.4, R5.7, R6.3, R11.1, R11.2, R11.3, R11.4, R11.5]
+    depends_on: [T005, T006]
+    context:
+      files: [apps/keeper/src]
+      symbols: [Keeper, KeeperConfig, PaymentAdapter, tick]
+    scope:
+      allowed_paths: [apps/keeper/src]
+      forbidden_paths: [packages/contracts/src, apps/web/src]
+      must_preserve: [동시 tick 1개, 온체인 위임 단일 진실 원천, price cost와 Decided 원자성]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm vitest run apps/keeper/src/keeper.test.ts]
+      full: [pnpm vitest run apps/keeper/src/keeper.test.ts, pnpm typecheck]
+    evidence: evidence/T007.json
+
+  - id: T008
+    title: 읽기 전용 status API와 실제 Narrator
+    outcome: Keeper가 변경 API 없이 일관된 상태와 검증된 설명 또는 템플릿을 제공한다.
+    requirements: [R8.1, R8.2, R8.3, R8.4, R8.5, R9.2, R11.1, R11.5]
+    depends_on: [T007]
+    context:
+      files: [apps/keeper/src/server.ts, apps/keeper/src/keeper.ts, apps/web/src/narrator]
+      symbols: [KeeperStatus, startApi, narrate]
+    scope:
+      allowed_paths: [apps/keeper/src, apps/web/src/narrator]
+      forbidden_paths: [packages/contracts/src, packages/engine/src]
+      must_preserve: [API 키는 브라우저에 없음, GET status만 외부 노출, 설명은 실행 인자를 변경하지 않음]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm vitest run apps/keeper/src]
+      full: [pnpm vitest run apps/keeper/src, pnpm typecheck]
+    evidence: evidence/T008.json
+
+  - id: T009
+    title: 웹 위임 owner 승인 손실과 Live2D 연결
+    outcome: 웹이 온체인 위임과 owner 직접 승인, 손실 근거, 캐릭터 상태를 한 흐름으로 표시한다.
+    requirements: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R2.5, R3.1, R3.2, R3.3, R3.4, R3.5, R5.3, R5.4, R5.5, R5.8, R6.3, R6.5, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7, R9.8, R10.4, R10.6, R10.9, R11.7]
+    depends_on: [T008]
+    context:
+      files: [apps/web/src]
+      symbols: [App, useVault, useKeeperApi, DelegationForm, ApprovalQueue, CharacterStage, deriveAgentState]
+    scope:
+      allowed_paths: [apps/web/src]
+      forbidden_paths: [packages/contracts/src, packages/engine/src, apps/keeper/src]
+      must_preserve: [owner 지갑 직접 승인, Live2D 정적 폴백, 지갑 연결 접근성]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: none
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm vitest run apps/web/src]
+      full: [pnpm vitest run apps/web/src, pnpm typecheck, pnpm --filter @soon/web build, KEEP=1 pnpm e2e]
+    evidence: evidence/T009.json
+
+  - id: T010
+    title: Anvil E2E와 인수 조건 전수 재판정
+    outcome: 전체 사용자 흐름과 75개 요구사항이 현재 코드와 실행 증거로 다시 판정된다.
+    requirements: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.4, R2.5, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7, R4.8, R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R8.1, R8.2, R8.3, R8.4, R8.5, R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7, R9.8, R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8, R10.9, R11.1, R11.2, R11.3, R11.4, R11.5, R11.6, R11.7]
+    depends_on: [T009]
+    context:
+      files: [apps/keeper/e2e/run.ts, .claude/specs/character-agent-rebalancer/acceptance.md]
+      symbols: []
+    scope:
+      allowed_paths: [apps/keeper/e2e/run.ts, apps/keeper/src, apps/web/src, packages/shared/src, packages/engine/src, packages/contracts, .claude/specs/character-agent-rebalancer]
+      forbidden_paths: [.github/workflows/base-contract.yml]
+      must_preserve: [75개 요구사항, 전체 베이스 검증, 실자금 금지]
+    capabilities:
+      network: false
+      secrets: false
+      database_write: test-only
+      production_write: false
+      delete: false
+      git_commit: false
+      git_push: false
+      deploy: false
+    verification:
+      fast: [pnpm test, pnpm typecheck, pnpm contracts:test]
+      full: [pnpm test, pnpm typecheck, pnpm --filter @soon/web build, pnpm contracts:test, pnpm e2e]
+    evidence: evidence/T010.json

@@ -15,20 +15,20 @@ export function PerformancePanel({ p }: { p: Performance }) {
       <p className="hint">거래 규모 대비 새어나간 값입니다. 낮을수록 좋아요.</p>
 
       <div className="stat">
-        <span className="big">{formatBps(p.totalFrictionBps)}</span>
+        <span className="big">{p.totalFrictionBps === null ? 'N/A' : formatBps(p.totalFrictionBps)}</span>
         <span className="label">운영비까지 포함한 총 마찰</span>
       </div>
 
       <div className="breakdown">
         <div className="row"><span className="k">거래 횟수</span><span>{p.tradeCount}회</span></div>
         <div className="row"><span className="k">총 거래 규모</span><span>{formatQuote(p.totalVolume)}</span></div>
-        <div className="row"><span className="k">슬리피지·수수료</span><span>{formatQuote(p.slippageCost)} ({formatBps(p.slippageOnlyBps)})</span></div>
-        <div className="row"><span className="k">운영비 (데이터·설명)</span><span>{formatQuote(p.operatingCost)} ({formatBps(p.operatingImpactBps)})</span></div>
+        <div className="row"><span className="k">슬리피지·수수료</span><span>{formatQuote(p.slippageCost)} ({p.slippageOnlyBps === null ? 'N/A' : formatBps(p.slippageOnlyBps)})</span></div>
+        <div className="row"><span className="k">운영비 (데이터·설명)</span><span>{formatQuote(p.operatingCost)} ({p.operatingImpactBps === null ? 'N/A' : formatBps(p.operatingImpactBps)})</span></div>
       </div>
 
       {p.operatingCost > 0n && (
         <p className="hint" style={{ marginTop: 10, marginBottom: 0 }}>
-          운영비가 대표 수치를 {formatBps(p.operatingImpactBps)}만큼 끌어올렸어요.
+          운영비가 대표 수치를 {p.operatingImpactBps === null ? 'N/A' : formatBps(p.operatingImpactBps)}만큼 끌어올렸어요.
         </p>
       )}
     </div>

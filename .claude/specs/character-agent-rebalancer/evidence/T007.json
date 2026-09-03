@@ -1,0 +1,29 @@
+{
+  "task_id": "T007",
+  "spec_hash": "43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937",
+  "status": "verified",
+  "attempt": 3,
+  "changed_files": [
+    "apps/keeper/src/keeper.ts",
+    "apps/keeper/src/keeper.test.ts",
+    "apps/keeper/src/payment.ts",
+    "apps/keeper/src/ports.ts",
+    "apps/keeper/src/viemAdapters.ts",
+    "apps/keeper/src/vaultBudgetAdapter.ts",
+    "apps/keeper/src/abi.ts",
+    "apps/keeper/src/records.ts",
+    "apps/keeper/src/index.ts",
+    "apps/keeper/e2e/run.ts",
+    "packages/shared/src/record.ts"
+  ],
+  "prior_failures": [
+    "Viem getBlockNumber cache returned a pre-delegation block; disabled the cache for the canonical tick block",
+    "Cached pending UI order retained the pre-quote minAmountOut; preserved the exact proposed order"
+  ],
+  "verification": [
+    { "command": "pnpm vitest run apps/keeper/src/keeper.test.ts", "exit_code": 0, "summary": "17 tests passed: on-chain configuration, one-block reads, atomic costs, pending recovery, cashflow and concurrency" },
+    { "command": "pnpm typecheck", "exit_code": 0, "summary": "TypeScript project references passed" },
+    { "command": "pnpm e2e", "exit_code": 0, "summary": "19 of 19 Anvil checks passed including automatic execution and owner wallet approval" },
+    { "command": "git diff --check", "exit_code": 0, "summary": "No whitespace errors" }
+  ]
+}

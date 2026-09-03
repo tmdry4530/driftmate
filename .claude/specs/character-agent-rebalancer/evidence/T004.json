@@ -1,0 +1,17 @@
+{
+  "task_id": "T004",
+  "spec_hash": "43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937",
+  "status": "verified",
+  "attempt": 2,
+  "changed_files": [
+    "packages/contracts/src/AgentVault.sol",
+    "packages/contracts/test/AgentVaultBudget.t.sol",
+    "packages/contracts/test/AgentVaultExecute.t.sol"
+  ],
+  "prior_failures": ["Stale NatSpec parameter name caused the first compile to fail"],
+  "verification": [
+    { "command": "pnpm contracts:test", "exit_code": 0, "summary": "67 tests passed, including 512-run fuzz cases" },
+    { "command": "forge fmt --root packages/contracts --check packages/contracts/src/AgentVault.sol packages/contracts/test/AgentVaultDelegation.t.sol packages/contracts/test/AgentVaultExecute.t.sol packages/contracts/test/AgentVaultBudget.t.sol", "exit_code": 0, "summary": "Formatting passed" },
+    { "command": "git diff --check", "exit_code": 0, "summary": "No whitespace errors" }
+  ]
+}

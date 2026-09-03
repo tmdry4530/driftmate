@@ -1,0 +1,56 @@
+spec_id: INT-2026-0001
+slug: character-agent-rebalancer
+mode:
+  primary: feature
+  secondary: [security, smart-contract]
+risk: L3
+phase: PLAN_APPROVED
+status: complete
+repository:
+  base_commit: 2edfd121fc4dc392d2b1b11cd5deed7118527114
+  branch: binance-agentOS
+  dirty_paths:
+    - .claude/specs/character-agent-rebalancer/tasks.yaml
+baseline:
+  commands:
+    - command: pnpm test
+      result: passed
+      detail: 109 tests passed
+    - command: pnpm typecheck
+      result: passed
+    - command: pnpm --filter @soon/web build
+      result: passed
+      detail: existing chunk-size warning
+    - command: pnpm contracts:test
+      result: blocked
+      detail: forge not found
+    - command: pnpm e2e
+      result: blocked
+      detail: spawn anvil ENOENT
+artifacts:
+  requirements: approved
+  design: approved
+  tasks: approved
+execution:
+  executor: codex-native
+  spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937
+  run_id: run-20260904-binance-agentos
+  current_task: ""
+  blocked_reason: ""
+  tasks:
+    T000: { status: verified, attempts: 1, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T001: { status: verified, attempts: 1, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T002: { status: verified, attempts: 1, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T003: { status: verified, attempts: 3, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T004: { status: verified, attempts: 2, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T005: { status: verified, attempts: 1, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T006: { status: verified, attempts: 1, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T007: { status: verified, attempts: 3, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T008: { status: verified, attempts: 1, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T009: { status: verified, attempts: 3, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+    T010: { status: verified, attempts: 3, last_failure: "", spec_hash: 43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937 }
+delivery:
+  code_complete: true
+  release_ready: false
+  deployed: false
+  post_deploy_verified: false

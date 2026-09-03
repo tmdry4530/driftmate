@@ -1,0 +1,77 @@
+spec_id: INT-2026-0001
+requirements:
+  R1.1: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R1.2: { design: [design.md], tasks: [T002, T009, T010], tests: [packages/contracts/test/AgentVaultDelegation.t.sol], evidence: [evidence/T002.json, evidence/T009.json, evidence/T010.json] }
+  R1.3: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R1.4: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R1.5: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R2.1: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R2.2: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R2.3: { design: [design.md], tasks: [T001, T002, T007, T009, T010], tests: [apps/keeper/src/delegation.test.ts, apps/keeper/src/keeper.test.ts], evidence: [evidence/T001.json, evidence/T007.json, evidence/T009.json, evidence/T010.json] }
+  R2.4: { design: [design.md], tasks: [T001, T002, T009, T010], tests: [apps/keeper/src/delegation.test.ts], evidence: [evidence/T001.json, evidence/T009.json, evidence/T010.json] }
+  R2.5: { design: [design.md], tasks: [T001, T002, T009, T010], tests: [apps/keeper/src/delegation.test.ts], evidence: [evidence/T001.json, evidence/T009.json, evidence/T010.json] }
+  R3.1: { design: [design.md], tasks: [T001, T002, T007, T009, T010], tests: [apps/keeper/src/delegation.test.ts, apps/keeper/src/keeper.test.ts], evidence: [evidence/T001.json, evidence/T007.json, evidence/T009.json, evidence/T010.json] }
+  R3.2: { design: [design.md], tasks: [T001, T002, T007, T009, T010], tests: [apps/keeper/src/delegation.test.ts, apps/keeper/src/keeper.test.ts], evidence: [evidence/T001.json, evidence/T007.json, evidence/T009.json, evidence/T010.json] }
+  R3.3: { design: [design.md], tasks: [T001, T002, T007, T009, T010], tests: [apps/keeper/src/delegation.test.ts, apps/keeper/src/keeper.test.ts], evidence: [evidence/T001.json, evidence/T007.json, evidence/T009.json, evidence/T010.json] }
+  R3.4: { design: [design.md], tasks: [T002, T007, T009, T010], tests: [packages/contracts/test/AgentVaultDelegation.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T002.json, evidence/T007.json, evidence/T009.json, evidence/T010.json] }
+  R3.5: { design: [design.md], tasks: [T002, T009, T010], tests: [packages/contracts/test/AgentVaultDelegation.t.sol], evidence: [evidence/T002.json, evidence/T009.json, evidence/T010.json] }
+  R3.6: { design: [design.md], tasks: [T002, T003, T010], tests: [packages/contracts/test/AgentVaultDelegation.t.sol], evidence: [evidence/T002.json, evidence/T010.json] }
+  R3.7: { design: [design.md], tasks: [T002, T010], tests: [packages/contracts/test/AgentVaultDelegation.t.sol], evidence: [evidence/T002.json, evidence/T010.json] }
+  R4.1: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R4.2: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R4.3: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R4.4: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R4.5: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R4.6: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R4.7: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R4.8: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R5.1: { design: [design.md], tasks: [T003, T007, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T003.json, evidence/T007.json, evidence/T010.json] }
+  R5.2: { design: [design.md], tasks: [T003, T007, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T003.json, evidence/T007.json, evidence/T010.json] }
+  R5.3: { design: [design.md], tasks: [T003, T007, T009, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T009.json, evidence/T010.json] }
+  R5.4: { design: [design.md], tasks: [T003, T007, T009, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T003.json, evidence/T007.json, evidence/T009.json, evidence/T010.json] }
+  R5.5: { design: [design.md], tasks: [T003, T009, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T009.json, evidence/T010.json] }
+  R5.6: { design: [design.md], tasks: [T003, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T010.json] }
+  R5.7: { design: [design.md], tasks: [T007, T010], tests: [apps/keeper/src/keeper.test.ts], evidence: [evidence/T007.json, evidence/T010.json] }
+  R5.8: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R6.1: { design: [design.md], tasks: [T003, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T010.json] }
+  R6.2: { design: [design.md], tasks: [T003, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T010.json] }
+  R6.3: { design: [design.md], tasks: [T003, T007, T009, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T003.json, evidence/T007.json, evidence/T009.json, evidence/T010.json] }
+  R6.4: { design: [design.md], tasks: [T003, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T010.json] }
+  R6.5: { design: [design.md], tasks: [T003, T009, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T009.json, evidence/T010.json] }
+  R6.6: { design: [design.md], tasks: [T003, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol], evidence: [evidence/T003.json, evidence/T010.json] }
+  R7.1: { design: [design.md], tasks: [T001, T004, T005, T010], tests: [apps/keeper/src/delegation.test.ts, apps/keeper/src/records.test.ts], evidence: [evidence/T001.json, evidence/T005.json, evidence/T010.json] }
+  R7.2: { design: [design.md], tasks: [T005, T009, T010], tests: [apps/keeper/src/records.test.ts], evidence: [evidence/T005.json, evidence/T009.json, evidence/T010.json] }
+  R7.3: { design: [design.md], tasks: [T005, T009, T010], tests: [apps/keeper/src/records.test.ts], evidence: [evidence/T005.json, evidence/T009.json, evidence/T010.json] }
+  R7.4: { design: [design.md], tasks: [T003, T004, T005, T009, T010], tests: [packages/contracts/test/AgentVaultExecute.t.sol, apps/keeper/src/records.test.ts], evidence: [evidence/T003.json, evidence/T004.json, evidence/T005.json, evidence/T009.json, evidence/T010.json] }
+  R7.5: { design: [design.md], tasks: [T005, T009, T010], tests: [apps/keeper/src/records.test.ts], evidence: [evidence/T005.json, evidence/T009.json, evidence/T010.json] }
+  R7.6: { design: [design.md], tasks: [T004, T005, T009, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol, apps/keeper/src/records.test.ts], evidence: [evidence/T004.json, evidence/T005.json, evidence/T009.json, evidence/T010.json] }
+  R7.7: { design: [design.md], tasks: [T004, T005, T006, T009, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol, packages/contracts/test/AgentVaultExecute.t.sol, apps/keeper/src/records.test.ts, packages/engine/src/trust.test.ts, apps/web/src/performance.test.ts], evidence: [evidence/T004.json, evidence/T005.json, evidence/T006.json, evidence/T009.json, evidence/T010.json] }
+  R8.1: { design: [design.md], tasks: [T008, T010], tests: [apps/keeper/src/narrator.test.ts, apps/keeper/src/keeper.test.ts], evidence: [evidence/T008.json, evidence/T010.json] }
+  R8.2: { design: [design.md], tasks: [T008, T010], tests: [apps/web/src/narrator/isolation.test-d.ts], evidence: [evidence/T008.json, evidence/T010.json] }
+  R8.3: { design: [design.md], tasks: [T008, T010], tests: [apps/keeper/src/narrator.test.ts, apps/web/src/narrator/narrate.test.ts], evidence: [evidence/T008.json, evidence/T010.json] }
+  R8.4: { design: [design.md], tasks: [T008, T010], tests: [apps/keeper/src/narrator.test.ts, apps/web/src/narrator/narrate.test.ts], evidence: [evidence/T008.json, evidence/T010.json] }
+  R8.5: { design: [design.md], tasks: [T008, T010], tests: [apps/keeper/src/narrator.test.ts, apps/web/src/narrator/narrate.test.ts], evidence: [evidence/T008.json, evidence/T010.json] }
+  R9.1: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R9.2: { design: [design.md], tasks: [T006, T008, T009, T010], tests: [packages/engine/src/pnl.test.ts, apps/keeper/src/keeper.test.ts], evidence: [evidence/T006.json, evidence/T008.json, evidence/T009.json, evidence/T010.json] }
+  R9.3: { design: [design.md], tasks: [T006, T009, T010], tests: [packages/engine/src/pnl.test.ts], evidence: [evidence/T006.json, evidence/T009.json, evidence/T010.json] }
+  R9.4: { design: [design.md], tasks: [T002, T006, T009, T010], tests: [packages/contracts/test/AgentVaultDelegation.t.sol, packages/engine/src/pnl.test.ts], evidence: [evidence/T002.json, evidence/T006.json, evidence/T009.json, evidence/T010.json] }
+  R9.5: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R9.6: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R9.7: { design: [design.md], tasks: [T004, T009, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol], evidence: [evidence/T004.json, evidence/T009.json, evidence/T010.json] }
+  R9.8: { design: [design.md], tasks: [T009, T010], tests: [], evidence: [evidence/T009.json, evidence/T010.json] }
+  R10.1: { design: [design.md], tasks: [T001, T005, T006, T010], tests: [apps/keeper/src/delegation.test.ts, apps/keeper/src/records.test.ts, packages/engine/src/trust.test.ts], evidence: [evidence/T001.json, evidence/T005.json, evidence/T006.json, evidence/T010.json] }
+  R10.2: { design: [design.md], tasks: [T006, T010], tests: [packages/engine/src/trust.test.ts], evidence: [evidence/T006.json, evidence/T010.json] }
+  R10.3: { design: [design.md], tasks: [T006, T010], tests: [packages/engine/src/trust.test.ts], evidence: [evidence/T006.json, evidence/T010.json] }
+  R10.4: { design: [design.md], tasks: [T006, T009, T010], tests: [packages/engine/src/trust.test.ts], evidence: [evidence/T006.json, evidence/T009.json, evidence/T010.json] }
+  R10.5: { design: [design.md], tasks: [T006, T010], tests: [packages/engine/src/trust.test.ts], evidence: [evidence/T006.json, evidence/T010.json] }
+  R10.6: { design: [design.md], tasks: [T004, T006, T009, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol, packages/engine/src/trust.test.ts], evidence: [evidence/T004.json, evidence/T006.json, evidence/T009.json, evidence/T010.json] }
+  R10.7: { design: [design.md], tasks: [T006, T010], tests: [packages/engine/src/trust.test.ts], evidence: [evidence/T006.json, evidence/T010.json] }
+  R10.8: { design: [design.md], tasks: [T006, T010], tests: [packages/engine/src/trust.test.ts], evidence: [evidence/T006.json, evidence/T010.json] }
+  R10.9: { design: [design.md], tasks: [T005, T006, T009, T010], tests: [apps/keeper/src/records.test.ts, packages/engine/src/trust.test.ts], evidence: [evidence/T005.json, evidence/T006.json, evidence/T009.json, evidence/T010.json] }
+  R11.1: { design: [design.md], tasks: [T004, T007, T008, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T004.json, evidence/T007.json, evidence/T008.json, evidence/T010.json] }
+  R11.2: { design: [design.md], tasks: [T004, T007, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T004.json, evidence/T007.json, evidence/T010.json] }
+  R11.3: { design: [design.md], tasks: [T004, T007, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T004.json, evidence/T007.json, evidence/T010.json] }
+  R11.4: { design: [design.md], tasks: [T004, T007, T010], tests: [packages/contracts/test/Mocks.t.sol], evidence: [evidence/T004.json, evidence/T010.json] }
+  R11.5: { design: [design.md], tasks: [T004, T007, T008, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol, apps/keeper/src/keeper.test.ts], evidence: [evidence/T004.json, evidence/T007.json, evidence/T008.json, evidence/T010.json] }
+  R11.6: { design: [design.md], tasks: [T004, T010], tests: [packages/contracts/test/AgentVaultBudget.t.sol], evidence: [evidence/T004.json, evidence/T010.json] }
+  R11.7: { design: [design.md], tasks: [T005, T006, T009, T010], tests: [apps/keeper/src/records.test.ts, apps/web/src/performance.test.ts], evidence: [evidence/T005.json, evidence/T006.json, evidence/T009.json, evidence/T010.json] }

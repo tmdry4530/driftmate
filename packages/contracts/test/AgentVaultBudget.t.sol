@@ -7,12 +7,6 @@ import {AgentVault} from "../src/AgentVault.sol";
 import {MockERC3009} from "../src/MockERC3009.sol";
 import {MockDex} from "../src/MockDex.sol";
 
-/**
- * 운영비가 거래 한도를 우회하는 통로가 되지 않는지 검증한다.
- *
- * 예산을 둘로 나눴다면 운영비 쪽으로 지출하면서 거래 예산을 온전히 남기는 우회가
- * 가능하다. 단일 예산이라는 선택이 실제로 그 구멍을 막는지 확인하는 것이 이 파일의 목적이다.
- */
 contract AgentVaultBudgetTest is Test {
     AgentVault internal vault;
     MockERC3009 internal token;
@@ -23,7 +17,7 @@ contract AgentVaultBudgetTest is Test {
     address internal executor = address(0xE0E0);
     address internal attacker = address(0xBAD);
 
-    uint256 internal constant BUDGET = 5_000e6; // $5000
+    uint256 internal constant BUDGET = 5_000e6;
     bytes32 internal constant CHAR = bytes32("timid");
     bytes internal EVIDENCE = hex"c0ffee";
 
@@ -37,7 +31,7 @@ contract AgentVaultBudgetTest is Test {
         dex = new MockDex(address(token), address(usdc));
         token.approve(address(dex), type(uint256).max);
         usdc.approve(address(dex), type(uint256).max);
-        dex.addLiquidity(100_000e18, 200_000_000e6); // 깊은 풀 — 가격 변동을 줄여 한도만 본다
+        dex.addLiquidity(100_000e18, 200_000_000e6);
 
         vault = new AgentVault(alice);
         token.mint(alice, 1_000e18);
@@ -57,162 +51,179 @@ contract AgentVaultBudgetTest is Test {
 
         d = AgentVault.Delegation({
             executor: executor,
+            characterId: CHAR,
+            strategyHash: bytes32(uint256(1)),
+            trustFormulaVersion: 1,
             quoteAsset: address(usdc),
             maxTradeValue: 1_000e6,
-            autoThreshold: 100e6,
+            autoThreshold: 1_000e6,
             budget: BUDGET,
+            operatingCap: BUDGET,
             expiry: uint64(block.timestamp + 30 days),
+            approvalTtlSeconds: 1 hours,
+            slippageToleranceBps: 100,
+            targetAsset: address(token),
+            targetAssetBps: 6_000,
             allowedAssets: assets,
             allowedDexes: dexes
         });
     }
 
     function _order(uint256 amountIn) internal view returns (AgentVault.SwapOrder memory) {
+        uint256 expected = dex.getAmountOut(address(token), amountIn);
         return AgentVault.SwapOrder({
             dex: address(dex),
             tokenIn: address(token),
             tokenOut: address(usdc),
             amountIn: amountIn,
-            minAmountOut: 0
+            minAmountOut: (expected * 9_900) / 10_000
         });
     }
 
-    // --- 단일 예산 -----------------------------------------------------------
-
-    function test_costAndTradeShareOneBudget() public {
-        vm.startPrank(executor);
-        vault.chargeCost(1_000e6, bytes32("c1"), 0);
-        assertEq(vault.budgetSpent(), 1_000e6);
-
-        vault.execute(_order(0.5e18), bytes32("t1"), CHAR, EVIDENCE); // 약 $1000
-        vm.stopPrank();
-
-        // 둘이 같은 통에서 빠진다 (R3.7).
-        assertApproxEqRel(vault.budgetSpent(), 2_000e6, 0.001e18);
-    }
-
-    /// 운영비를 많이 쓰면 그만큼 거래 여력이 준다 — 이것이 우회를 막는 방식이다.
-    function test_costReducesTradeCapacity() public {
-        vm.startPrank(executor);
-        vault.chargeCost(4_500e6, bytes32("c2"), 0); // 예산 $5000 중 $4500 소진
-
-        // 남은 여력은 $500. $1000짜리 거래는 들어갈 수 없다.
-        vm.expectRevert(AgentVault.BudgetExhausted.selector);
-        vault.execute(_order(0.5e18), bytes32("t2"), CHAR, EVIDENCE);
-        vm.stopPrank();
-    }
-
-    /// 반대 방향도 성립한다 — 거래를 하면 운영비 여력이 준다.
-    function test_tradeReducesCostCapacity() public {
-        vm.startPrank(executor);
-        // 하드캡이 $1000이므로 나눠서 넣는다. 4회 × 약 $1000 = 약 $4000.
-        for (uint256 i = 0; i < 4; i++) {
-            vault.execute(_order(0.5e18), bytes32(i + 200), CHAR, EVIDENCE);
-        }
-
-        // 남은 여력은 약 $1000. $1500짜리 운영비는 들어갈 수 없다.
-        vm.expectRevert(AgentVault.BudgetExhausted.selector);
-        vault.chargeCost(1_500e6, bytes32("c3"), 0);
-        vm.stopPrank();
-    }
-
-    function test_costChargeEmitsEvent() public {
-        vm.recordLogs();
+    function _recordPrice(bytes32 decisionId, uint256 amount) internal {
+        uint256 nonce = vault.stateNonce();
         vm.prank(executor);
-        vault.chargeCost(123e6, bytes32("c4"), 1);
+        vault.recordNotExecuted(1, nonce, decisionId, EVIDENCE, 6, amount);
+    }
+
+    function _auto(bytes32 decisionId, uint256 amountIn, uint256 priceCost) internal {
+        uint256 nonce = vault.stateNonce();
+        AgentVault.SwapOrder memory o = _order(amountIn);
+        vm.prank(executor);
+        vault.executeAuto(1, nonce, o, decisionId, EVIDENCE, priceCost);
+    }
+
+    function test_priceCostAndTradeShareOneBudgetAtomically() public {
+        _recordPrice(bytes32("c1"), 100e6);
+        _auto(bytes32("t1"), 0.5e18, 50e6);
+
+        assertApproxEqRel(vault.budgetSpent(), 1_150e6, 0.001e18);
+        assertEq(vault.operatingSpent(), 150e6);
+    }
+
+    function test_priceCostCannotLeaveOrphanWhenTradeFails() public {
+        AgentVault.SwapOrder memory o = _order(0.5e18);
+        o.minAmountOut = dex.getAmountOut(address(token), 0.5e18) + 1;
+        vm.prank(executor);
+        vm.expectRevert(MockDex.InsufficientOutput.selector);
+        vault.executeAuto(1, 0, o, bytes32("fail"), EVIDENCE, 100e6);
+
+        assertEq(vault.budgetSpent(), 0);
+        assertEq(vault.operatingSpent(), 0);
+        assertFalse(vault.decisionRecorded(1, bytes32("fail")));
+    }
+
+    function test_costReducesTradeCapacity() public {
+        _recordPrice(bytes32("cost"), 4_500e6);
+        AgentVault.SwapOrder memory o = _order(0.5e18);
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.BudgetExhausted.selector);
+        vault.executeAuto(1, 1, o, bytes32("trade"), EVIDENCE, 0);
+        assertEq(vault.budgetSpent(), 4_500e6);
+    }
+
+    function test_tradeReducesCostCapacity() public {
+        _auto(bytes32("trade"), 0.5e18, 0);
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.BudgetExhausted.selector);
+        vault.recordNotExecuted(1, 1, bytes32("cost"), EVIDENCE, 6, 4_100e6);
+        assertEq(vault.operatingSpent(), 0);
+    }
+
+    function test_operatingCapIsEnforcedSeparately() public {
+        AgentVault.Delegation memory d = _delegation();
+        d.operatingCap = 100e6;
+        vm.prank(alice);
+        vault.setDelegation(d);
+
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.OperatingBudgetExhausted.selector);
+        vault.recordNotExecuted(2, 0, bytes32("cost"), EVIDENCE, 6, 100e6 + 1);
+        assertEq(vault.budgetSpent(), 0);
+        assertEq(vault.operatingSpent(), 0);
+    }
+
+    function test_costChargeEmitsSessionBoundEvent() public {
+        vm.recordLogs();
+        _recordPrice(bytes32("cost"), 123e6);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool saw;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("CostCharged(bytes32,uint256,uint8)")) saw = true;
+            if (logs[i].topics[0] == keccak256("CostCharged(bytes32,uint256,uint256,uint8)")) saw = true;
         }
         assertTrue(saw);
     }
 
-    function test_nonExecutorCannotChargeCost() public {
+    function test_narrationCostRequiresDecisionAndIsChargedOnce() public {
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.DecisionNotRecorded.selector);
+        vault.chargeNarrationCost(1, bytes32("d1"), 10e6);
+
+        _recordPrice(bytes32("d1"), 20e6);
+        vm.prank(executor);
+        vault.chargeNarrationCost(1, bytes32("d1"), 10e6);
+        assertEq(vault.operatingSpent(), 30e6);
+
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.CostAlreadyRecorded.selector);
+        vault.chargeNarrationCost(1, bytes32("d1"), 10e6);
+    }
+
+    function test_nonExecutorCannotChargeNarration() public {
+        _recordPrice(bytes32("d1"), 0);
         vm.prank(attacker);
         vm.expectRevert(AgentVault.NotExecutor.selector);
-        vault.chargeCost(1e6, bytes32("c5"), 0);
+        vault.chargeNarrationCost(1, bytes32("d1"), 10e6);
     }
 
-    function test_ownerCannotChargeCost() public {
-        vm.prank(alice);
-        vm.expectRevert(AgentVault.NotExecutor.selector);
-        vault.chargeCost(1e6, bytes32("c6"), 0);
-    }
-
-    function test_costBlockedAfterRevoke() public {
-        vm.prank(alice);
-        vault.revoke();
-
-        vm.prank(executor);
-        vm.expectRevert(AgentVault.NotExecutor.selector);
-        vault.chargeCost(1e6, bytes32("c7"), 0);
-    }
-
-    // --- 불변식 (fuzz) --------------------------------------------------------
-
-    /// 어떤 운영비 조합으로도 예산을 넘길 수 없다.
-    function testFuzz_costNeverExceedsBudget(uint96 a, uint96 b, uint96 c) public {
-        vm.startPrank(executor);
+    function testFuzz_costNeverExceedsEitherBudget(uint96 a, uint96 b, uint96 c) public {
         uint96[3] memory amounts = [a, b, c];
-        for (uint256 i = 0; i < 3; i++) {
-            try vault.chargeCost(amounts[i], bytes32(i + 100), 0) {} catch {}
-            // 성공했든 되돌려졌든 불변식은 항상 성립해야 한다.
+        for (uint256 i = 0; i < amounts.length; i++) {
+            uint256 nonce = vault.stateNonce();
+            vm.prank(executor);
+            try vault.recordNotExecuted(1, nonce, bytes32(i + 100), EVIDENCE, 6, amounts[i]) {} catch {}
             assertLe(vault.budgetSpent(), BUDGET);
+            assertLe(vault.operatingSpent(), BUDGET);
         }
-        vm.stopPrank();
     }
 
-    /// 운영비와 거래를 섞어도 총 지출은 예산을 넘지 못한다 (R11.6).
     function testFuzz_mixedSpendingNeverExceedsBudget(uint96 cost, uint64 tradeAmount) public {
-        uint256 amountIn = bound(uint256(tradeAmount), 1e12, 1e18);
+        uint256 amountIn = bound(uint256(tradeAmount), 1e12, 0.5e18);
+        _recordPriceOrIgnore(bytes32("cost"), cost);
 
-        vm.startPrank(executor);
-        try vault.chargeCost(cost, bytes32("fc"), 0) {} catch {}
+        uint256 nonce = vault.stateNonce();
+        AgentVault.SwapOrder memory o = _order(amountIn);
+        vm.prank(executor);
+        try vault.executeAuto(1, nonce, o, bytes32("trade"), EVIDENCE, 0) {} catch {}
         assertLe(vault.budgetSpent(), BUDGET);
-
-        try vault.execute(_order(amountIn), bytes32("ft"), CHAR, EVIDENCE) {} catch {}
-        assertLe(vault.budgetSpent(), BUDGET);
-        vm.stopPrank();
+        assertLe(vault.operatingSpent(), BUDGET);
     }
 
-    /// 운영비를 잘게 쪼개 반복해도 우회되지 않는다.
-    function testFuzz_repeatedSmallCostsCannotOverflowBudget(uint8 rounds, uint96 unit) public {
-        uint256 n = bound(uint256(rounds), 1, 40);
-        uint256 amount = bound(uint256(unit), 1, 1_000e6);
-
-        vm.startPrank(executor);
-        for (uint256 i = 0; i < n; i++) {
-            try vault.chargeCost(amount, bytes32(i + 1000), 0) {} catch {}
-        }
-        vm.stopPrank();
-
-        assertLe(vault.budgetSpent(), BUDGET);
+    function _recordPriceOrIgnore(bytes32 decisionId, uint256 amount) private {
+        uint256 nonce = vault.stateNonce();
+        vm.prank(executor);
+        try vault.recordNotExecuted(1, nonce, decisionId, EVIDENCE, 6, amount) {} catch {}
     }
 
-    // --- 실망 신호 -----------------------------------------------------------
-
-    function test_ownerCanSignalDisappointment() public {
-        vm.recordLogs();
+    function test_disappointmentIsSessionBoundAndUnique() public {
+        bytes32 reportId = keccak256("loss-report");
         vm.prank(alice);
-        vault.signalDisappointment();
+        vault.signalDisappointment(1, reportId);
+        assertTrue(vault.disappointmentRecorded(1, reportId));
 
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool saw;
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("Disappointed(uint256)")) saw = true;
-        }
-        assertTrue(saw);
+        vm.prank(alice);
+        vm.expectRevert(AgentVault.DisappointmentAlreadyRecorded.selector);
+        vault.signalDisappointment(1, reportId);
+
+        vm.prank(alice);
+        vm.expectRevert(AgentVault.WrongDelegation.selector);
+        vault.signalDisappointment(2, keccak256("other"));
     }
 
     function test_onlyOwnerCanSignalDisappointment() public {
         vm.prank(executor);
         vm.expectRevert(AgentVault.NotOwner.selector);
-        vault.signalDisappointment();
-
-        vm.prank(attacker);
-        vm.expectRevert(AgentVault.NotOwner.selector);
-        vault.signalDisappointment();
+        vault.signalDisappointment(1, keccak256("loss"));
     }
 }

@@ -1,0 +1,27 @@
+{
+  "task_id": "T008",
+  "spec_hash": "43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937",
+  "status": "verified",
+  "attempt": 1,
+  "changed_files": [
+    "apps/keeper/src/keeper.ts",
+    "apps/keeper/src/keeper.test.ts",
+    "apps/keeper/src/narrator.ts",
+    "apps/keeper/src/narrator.test.ts",
+    "apps/keeper/src/server.ts",
+    "apps/keeper/src/server.test.ts",
+    "apps/keeper/src/ports.ts",
+    "apps/keeper/src/records.ts",
+    "apps/keeper/src/records.test.ts",
+    "apps/keeper/src/viemAdapters.ts",
+    "apps/keeper/src/index.ts",
+    "apps/web/src/narrator/narrate.test.ts",
+    "apps/web/src/narrator/isolation.test-d.ts",
+    "apps/web/src/App.tsx"
+  ],
+  "verification": [
+    { "command": "pnpm vitest run apps/keeper/src apps/web/src/narrator", "exit_code": 0, "summary": "47 tests passed including read-only API, pending recovery, native fetch narrator, validation, timeout and restart fallback" },
+    { "command": "pnpm typecheck", "exit_code": 0, "summary": "TypeScript project references passed" },
+    { "command": "git diff --check", "exit_code": 0, "summary": "No whitespace errors" }
+  ]
+}

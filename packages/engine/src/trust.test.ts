@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Address, DecisionId, SignedLimits, TrackRecord } from '@soon/shared'
 import { canonical } from './canonical.js'
 import { resolveGate } from './gate.js'
-import { computeTrust } from './trust.js'
+import { computeTrust as computeTrustFor } from './trust.js'
 
 const TOKEN: Address = '0x1111111111111111111111111111111111111111'
 const USDC: Address = '0x2222222222222222222222222222222222222222'
@@ -12,10 +12,16 @@ function did(n: number): DecisionId {
   return `0x${n.toString(16).padStart(64, '0')}`
 }
 
+const session = { delegationId: 1n, characterId: 'timid', trustFormulaVersion: 1 } as const
+
+function computeTrust(records: readonly TrackRecord[]) {
+  return computeTrustFor(records, 'timid', 1)
+}
+
 /** 싸게 옮긴 실행 한 건 — $1000 거래에 마찰 $2 (20bp). */
 function profitable(n: number, block: bigint): TrackRecord[] {
   return [
-    { kind: 'cost', decisionId: did(n), blockNumber: block, amount: 1_000_000n, costKind: 'price_data' },
+    { ...session, kind: 'cost', decisionId: did(n), blockNumber: block, amount: 1_000_000n, costKind: 'price_data' },
     {
       kind: 'executed',
       decisionId: did(n),
@@ -24,7 +30,9 @@ function profitable(n: number, block: bigint): TrackRecord[] {
       tokenOut: USDC,
       amountIn: 1n,
       amountOut: 1n,
-      valueQuote: 1_000_000_000n, // $1000
+      ...session,
+      valueInQuote: 1_000_000_000n, // $1000
+      valueOutQuote: 999_000_000n,
       frictionQuote: 1_000_000n, // $1 슬리피지 → 운영비 합쳐 20bp
     },
   ]
@@ -33,7 +41,7 @@ function profitable(n: number, block: bigint): TrackRecord[] {
 /** 비싸게 옮긴 실행 한 건 — 같은 $1000 거래에 마찰 $30 (300bp). */
 function lossy(n: number, block: bigint): TrackRecord[] {
   return [
-    { kind: 'cost', decisionId: did(n), blockNumber: block, amount: 20_000_000n, costKind: 'price_data' },
+    { ...session, kind: 'cost', decisionId: did(n), blockNumber: block, amount: 20_000_000n, costKind: 'price_data' },
     {
       kind: 'executed',
       decisionId: did(n),
@@ -42,7 +50,9 @@ function lossy(n: number, block: bigint): TrackRecord[] {
       tokenOut: USDC,
       amountIn: 1n,
       amountOut: 1n,
-      valueQuote: 1_000_000_000n,
+      ...session,
+      valueInQuote: 1_000_000_000n,
+      valueOutQuote: 990_000_000n,
       frictionQuote: 10_000_000n, // $10 슬리피지 + $20 운영비 = 300bp
     },
   ]
@@ -67,6 +77,13 @@ describe('computeTrust — 재현성 (R10.1)', () => {
     const t = computeTrust([])
     expect(t.score).toBe(50)
     expect(t.formulaVersion).toBe('v1')
+  })
+
+  it('선택한 캐릭터 기록만 사용하고 미지원 공식은 거부한다', () => {
+    const other = profitable(1, 10n).map((record) => ({ ...record, characterId: 'easygoing' as const }))
+    expect(computeTrustFor(other, 'timid', 1).score).toBe(50)
+    expect(computeTrustFor(other, 'easygoing', 1).score).toBeGreaterThan(50)
+    expect(() => computeTrustFor(other, 'easygoing', 2)).toThrow('unsupported trust formula')
   })
 })
 
@@ -100,15 +117,17 @@ describe('computeTrust — 순성과 기준 (R10.2, R10.5)', () => {
       tokenOut: USDC,
       amountIn: 1n,
       amountOut: 1n,
-      valueQuote: 1_000_000_000n,
+      ...session,
+      valueInQuote: 1_000_000_000n,
+      valueOutQuote: 999_000_000n,
       frictionQuote: 1_000_000n, // 슬리피지는 동일하게 10bp
     }
     const cheap = computeTrust([
-      { kind: 'cost', decisionId: did(1), blockNumber: 10n, amount: 1_000_000n, costKind: 'price_data' },
+      { ...session, kind: 'cost', decisionId: did(1), blockNumber: 10n, amount: 1_000_000n, costKind: 'price_data' },
       base,
     ])
     const expensive = computeTrust([
-      { kind: 'cost', decisionId: did(1), blockNumber: 10n, amount: 40_000_000n, costKind: 'price_data' },
+      { ...session, kind: 'cost', decisionId: did(1), blockNumber: 10n, amount: 40_000_000n, costKind: 'price_data' },
       base,
     ])
     expect(cheap.score).toBeGreaterThan(expensive.score)
@@ -127,7 +146,7 @@ describe('computeTrust — 실망 표시 (R10.6, R10.7)', () => {
     const before = computeTrust(profitable(1, 10n))
     const after = computeTrust([
       ...profitable(1, 10n),
-      { kind: 'disappointed', blockNumber: 11n },
+      { kind: 'disappointed', delegationId: 1n, characterId: 'timid', reportId: did(11), blockNumber: 11n },
     ])
 
     expect(after.score).toBeLessThan(before.score)
@@ -136,8 +155,8 @@ describe('computeTrust — 실망 표시 (R10.6, R10.7)', () => {
   })
 
   it('실망으로 깎인 점수는 실적으로만 되돌아온다', () => {
-    const base: TrackRecord[] = [{ kind: 'disappointed', blockNumber: 10n }]
-    const justWaiting = computeTrust([...base, { kind: 'decided', decisionId: did(2), blockNumber: 50n, characterId: 'timid', evidence: { weights: [], driftBps: 0 as never, bandBps: 0 as never, outcome: 'held' } }])
+    const base: TrackRecord[] = [{ kind: 'disappointed', delegationId: 1n, characterId: 'timid', reportId: did(10), blockNumber: 10n }]
+    const justWaiting = computeTrust([...base, { ...session, kind: 'decided', decisionId: did(2), blockNumber: 50n, evidence: { weights: [], driftBps: 0 as never, bandBps: 0 as never, outcome: 'held' } }])
     const withProfit = computeTrust([...base, ...profitable(3, 60n), ...profitable(4, 70n)])
 
     // 시간이 지나거나 판단만 쌓인다고 회복되지 않는다.

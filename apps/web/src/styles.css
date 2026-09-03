@@ -80,7 +80,8 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   display: flex; justify-content: space-between; gap: 12px;
   padding: 4px 0; font-size: 13.5px; font-variant-numeric: tabular-nums;
 }
-.row .k { color: var(--ink-soft); }
+.row .k { color: var(--ink-soft); flex: 0 0 auto; }
+.row > :last-child { min-width: 0; overflow-wrap: anywhere; text-align: right; }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }

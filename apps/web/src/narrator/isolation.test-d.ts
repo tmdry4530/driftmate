@@ -1,9 +1,9 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type { Decision, DecisionEvidence, Narration } from '@soon/shared'
 import type { VaultWriter } from '@soon/keeper'
-import { narrate } from './narrate.js'
+import { narrate } from '@soon/keeper'
 
-type ExecuteArgs = Parameters<VaultWriter['execute']>[0]
+type ExecuteArgs = Parameters<VaultWriter['executeAuto']>[0]
 
 describe('LLM 격리 — 설명이 실행을 건드릴 수 없다 (R8.2)', () => {
   it('narrate는 근거만 받는다', () => {

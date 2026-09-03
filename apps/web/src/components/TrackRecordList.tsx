@@ -8,6 +8,9 @@ const REASON_LABEL: Record<string, string> = {
   slippage: '체결가가 나빠서',
   stale_price: '가격이 오래돼서',
   budget_exhausted: '예산이 모자라서',
+  within_band: '허용 범위 안이라서',
+  below_min_trade: '최소 거래액보다 작아서',
+  execution_failed: '실행 트랜잭션이 실패해서',
 }
 
 /**
@@ -72,14 +75,14 @@ export function TrackRecordList({
                     {r.kind === 'disappointed' && <span className="chip skip">실망 표시</span>}
                   </td>
                   <td>
-                    {r.kind === 'executed' && `${formatBps(Number((r.frictionQuote * 10_000n) / (r.valueQuote || 1n)))} 마찰`}
+                    {r.kind === 'executed' && `${formatBps(Number((r.frictionQuote * 10_000n) / (r.valueInQuote || 1n)))} 마찰`}
                     {r.kind === 'not_executed' && (REASON_LABEL[r.reason] ?? r.reason)}
                     {r.kind === 'cost' && (r.costKind === 'price_data' ? '가격 데이터' : '설명 생성')}
                     {r.kind === 'decided' && '판단 기록'}
                     {r.kind === 'disappointed' && '재량이 좁아짐'}
                   </td>
                   <td className="num">
-                    {r.kind === 'executed' && formatQuote(r.valueQuote)}
+                    {r.kind === 'executed' && formatQuote(r.valueInQuote)}
                     {r.kind === 'cost' && formatQuote(r.amount)}
                   </td>
                 </tr>

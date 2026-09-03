@@ -1,13 +1,20 @@
 import { useMemo, useState } from 'react'
-import { useAccount, useWriteContract } from 'wagmi'
-import type { CharacterId, Narration } from '@soon/shared'
-import { computeTrust } from '@soon/engine'
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
+import { stringToHex, type Hex } from 'viem'
+import type { CharacterId, Narration, PendingView } from '@soon/shared'
+import { characterOf, computeTrust } from '@soon/engine'
+import {
+  NOT_EXECUTED_REASON,
+  strategyHash,
+  SUPPORTED_TRUST_FORMULA_VERSION,
+  templateNarration,
+} from '@soon/keeper'
 import type { AppConfig } from './config.js'
 import { evaluateGuard } from './chainGuard.js'
 import { viewOf } from './characters.js'
 import { computePerformance } from './performance.js'
-import type { AgentState } from './characterState.js'
-import { templateNarration } from './narrator/narrate.js'
+import { currentKeeperStatus, deriveAgentState } from './characterState.js'
+import { sameDelegation } from './delegationDraft.js'
 import { live2dLoader } from './live2d.js'
 import { useVault, vaultAbiParsed } from './hooks/useVault.js'
 import { useKeeperApi } from './hooks/useKeeperApi.js'
@@ -20,14 +27,17 @@ import { TrackRecordList } from './components/TrackRecordList.js'
 import { ApprovalQueue } from './components/ApprovalQueue.js'
 import { TrustPanel } from './components/TrustPanel.js'
 import { DelegationStatus } from './components/DelegationStatus.js'
+import { LossReportPanel } from './components/LossReportPanel.js'
 
 export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: string | undefined }) {
   const { address, isConnected, chainId } = useAccount()
-  const [character, setCharacter] = useState<CharacterId>('timid')
+  const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('timid')
   const { state, error, refresh } = useVault(config)
   const keeper = useKeeperApi(keeperUrl)
+  const client = usePublicClient()
   const { writeContractAsync, isPending } = useWriteContract()
   const [txError, setTxError] = useState<string | undefined>()
+  const [failedDecisionId, setFailedDecisionId] = useState<string | undefined>()
 
   const guard = evaluateGuard({
     address: isConnected ? address : undefined,
@@ -35,92 +45,208 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
     expectedChainId: config.chainId,
     expectedChainName: config.chainName,
   })
-
-  const trust = useMemo(() => computeTrust(state.records), [state.records])
-  const perf = useMemo(() => computePerformance(state.records), [state.records])
+  const character = state.active && state.delegation?.characterId
+    ? state.delegation.characterId
+    : selectedCharacter
   const view = viewOf(character)
+  const records = useMemo(
+    () => state.records.filter((record) => record.characterId === character),
+    [state.records, character],
+  )
+  const trust = useMemo(
+    () => computeTrust(state.records, character, SUPPORTED_TRUST_FORMULA_VERSION),
+    [state.records, character],
+  )
+  const performance = useMemo(() => computePerformance(state.records, character), [state.records, character])
+  const status = currentKeeperStatus(keeper.online ? keeper.status : undefined, {
+    delegationId: state.delegationId,
+    configHash: state.configHash,
+    stateNonce: state.stateNonce,
+    pending: state.pending,
+    records: state.records,
+  })
+  const lossReport = status?.lossReport
+  const userDisappointed = Boolean(
+    lossReport &&
+    state.records.some(
+      (record) =>
+        record.kind === 'disappointed' &&
+        record.delegationId === state.delegationId &&
+        record.reportId.toLowerCase() === lossReport.reportId.toLowerCase(),
+    ),
+  )
+  const latestExecuted = records
+    .filter((record) => record.kind === 'executed' && record.delegationId === state.delegationId)
+    .at(-1)
+  const agentState = status
+    ? deriveAgentState(status, userDisappointed)
+    : latestExecuted
+      ? { kind: 'executed' as const }
+      : { kind: 'idle' as const }
 
-  const latest = state.records.filter((r) => r.kind === 'executed').at(-1)
+  const latestDecided = records
+    .filter((record) => record.kind === 'decided' && record.delegationId === state.delegationId)
+    .at(-1)
+  const fallbackNarration: Narration | undefined =
+    latestDecided?.kind === 'decided' && latestDecided.evidence
+      ? {
+          text: templateNarration({
+            ...latestDecided.evidence,
+            outcome: latestExecuted?.kind === 'executed' && latestExecuted.decisionId === latestDecided.decisionId
+              ? 'executed'
+              : latestDecided.evidence.outcome,
+          }),
+          fallback: true,
+        }
+      : undefined
+  const narration = status?.narration ?? fallbackNarration
+  const pending = status?.pending ? [status.pending] : []
 
-  // 손익 표시는 아직 하지 않는다. 예치 시점 가격이 어디에도 기록되지 않아
-  // 포트폴리오 손익을 정직하게 계산할 방법이 없다 — 근사값을 손익처럼
-  // 보여주느니 보여주지 않는다. (design.md 미해결 항목)
-  const agentState: AgentState = keeper.pending.length > 0
-    ? { kind: 'awaiting_approval' }
-    : latest
-      ? { kind: 'executed' }
-      : { kind: 'idle' }
-
-  // 설명은 온체인에 남은 판단 근거에서만 만든다. 화면이 수치를 지어내면
-  // Narrator를 격리해 둔 의미가 없어진다 (R8.1).
-  //
-  // 근거는 실행 '전'에 기록되므로 outcome이 아직 'asked'다. 실제로 실행됐는지는
-  // 같은 판단의 Executed 이벤트가 말해주므로 그것으로 보정한다.
-  const latestDecided = state.records.filter((r) => r.kind === 'decided').at(-1)
-  const narration: Narration | undefined = (() => {
-    if (latestDecided?.kind !== 'decided') return undefined
-    const executed = state.records.some(
-      (r) => r.kind === 'executed' && r.decisionId === latestDecided.decisionId,
-    )
-    const evidence = executed
-      ? { ...latestDecided.evidence, outcome: 'executed' as const }
-      : latestDecided.evidence
-    return { text: templateNarration(evidence), fallback: true }
-  })()
-
-  const effectiveCap = state.autoThreshold === undefined
-    ? undefined
-    : (state.autoThreshold * BigInt(trust.discretionBps as number)) / 10_000n
-
-  /** 트랜잭션 실패를 삼키지 않고 화면에 알린다 (R6.3). */
-  async function send(fn: () => Promise<unknown>, what: string) {
+  /** receipt 확정과 선택 검증이 끝난 뒤 체인·Keeper 상태를 함께 갱신한다. */
+  async function send(
+    fn: () => Promise<Hex>,
+    what: string,
+    afterReceipt?: (blockNumber: bigint) => Promise<void>,
+  ): Promise<boolean> {
     setTxError(undefined)
     try {
-      await fn()
-      await refresh()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setTxError(`${what} 실패: ${msg.split('\n')[0]}`)
+      if (!client) throw new Error('체인 연결이 준비되지 않았어요')
+      const hash = await fn()
+      const receipt = await client.waitForTransactionReceipt({ hash })
+      if (receipt.status !== 'success') throw new Error('트랜잭션이 되돌려졌어요')
+      await afterReceipt?.(receipt.blockNumber)
+      await Promise.all([refresh(), keeper.refresh()])
+      return true
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setTxError(`${what} 실패: ${message.split('\n')[0]}`)
+      return false
     }
   }
 
-  async function submitDelegation(d: DelegationDraft) {
-    const now = BigInt(Math.floor(Date.now() / 1000))
-    await writeContractAsync({
-      address: config.vault,
-      abi: vaultAbiParsed,
-      functionName: 'setDelegation',
-      args: [
-        {
-          executor: config.executor,
-          quoteAsset: config.quote,
-          maxTradeValue: d.maxTradeValue,
-          autoThreshold: d.autoThreshold,
-          budget: d.budget,
-          expiry: now + BigInt(d.days) * 86_400n,
-          allowedAssets: [config.token, config.quote],
-          allowedDexes: [config.dex],
-        },
-      ],
-    })
+  async function submitDelegation(draft: DelegationDraft) {
+    if (!client) throw new Error('체인 연결이 준비되지 않았어요')
+    const now = (await client.getBlock()).timestamp
+    const delegation = {
+      executor: config.executor,
+      characterId: stringToHex(selectedCharacter, { size: 32 }),
+      strategyHash: strategyHash(characterOf(selectedCharacter)),
+      trustFormulaVersion: SUPPORTED_TRUST_FORMULA_VERSION,
+      quoteAsset: config.quote,
+      maxTradeValue: draft.maxTradeValue,
+      autoThreshold: draft.autoThreshold,
+      budget: draft.budget,
+      operatingCap: draft.operatingCap,
+      expiry: now + BigInt(draft.days) * 86_400n,
+      approvalTtlSeconds: draft.approvalTtlSeconds,
+      slippageToleranceBps: draft.slippageToleranceBps,
+      targetAsset: config.token,
+      targetAssetBps: draft.tokenWeightBps,
+      allowedAssets: [config.token, config.quote],
+      allowedDexes: [config.dex],
+    } as const
+    await send(
+      () => writeContractAsync({
+        address: config.vault,
+        abi: vaultAbiParsed,
+        functionName: 'setDelegation',
+        args: [delegation],
+      }),
+      '위임 설정',
+      async (blockNumber) => {
+        const stored = await client.readContract({
+          address: config.vault,
+          abi: vaultAbiParsed,
+          functionName: 'delegation',
+          blockNumber,
+        })
+        if (!sameDelegation(delegation, stored)) throw new Error('서명한 위임과 온체인 저장값이 달라요')
+      },
+    )
   }
 
-  async function signalDisappointment() {
-    await writeContractAsync({
-      address: config.vault,
-      abi: vaultAbiParsed,
-      functionName: 'signalDisappointment',
-      args: [],
-    })
+  async function approve(pending: PendingView) {
+    const ok = await send(
+      () => writeContractAsync({
+        address: config.vault,
+        abi: vaultAbiParsed,
+        functionName: 'executeApproved',
+        args: [
+          BigInt(pending.delegationId),
+          BigInt(pending.stateNonce),
+          pending.decisionId,
+          { dex: pending.dex, ...pending.trade },
+        ],
+      }),
+      '승인 실행',
+    )
+    setFailedDecisionId(ok ? undefined : pending.decisionId)
   }
 
-  async function revokeDelegation() {
-    await writeContractAsync({
-      address: config.vault,
-      abi: vaultAbiParsed,
-      functionName: 'revoke',
-      args: [],
-    })
+  function reject(pending: PendingView) {
+    return send(
+      () => writeContractAsync({
+        address: config.vault,
+        abi: vaultAbiParsed,
+        functionName: 'reject',
+        args: [BigInt(pending.delegationId), BigInt(pending.stateNonce), pending.decisionId],
+      }),
+      '승인 거절',
+    )
+  }
+
+  function expire(pending: PendingView) {
+    return send(
+      () => writeContractAsync({
+        address: config.vault,
+        abi: vaultAbiParsed,
+        functionName: 'expire',
+        args: [BigInt(pending.delegationId), BigInt(pending.stateNonce), pending.decisionId],
+      }),
+      '승인 만료',
+    )
+  }
+
+  function finalizeFailure(pending: PendingView) {
+    return send(
+      () => writeContractAsync({
+        address: config.vault,
+        abi: vaultAbiParsed,
+        functionName: 'finalizePendingFailure',
+        args: [
+          BigInt(pending.delegationId),
+          BigInt(pending.stateNonce),
+          pending.decisionId,
+          NOT_EXECUTED_REASON.execution_failed,
+        ],
+      }),
+      '실패 종결',
+    )
+  }
+
+  function signalDisappointment() {
+    if (!lossReport || lossReport.status !== 'loss') return Promise.resolve(false)
+    return send(
+      () => writeContractAsync({
+        address: config.vault,
+        abi: vaultAbiParsed,
+        functionName: 'signalDisappointment',
+        args: [BigInt(lossReport.delegationId), lossReport.reportId],
+      }),
+      '실망 표시',
+    )
+  }
+
+  function revokeDelegation() {
+    return send(
+      () => writeContractAsync({
+        address: config.vault,
+        abi: vaultAbiParsed,
+        functionName: 'revoke',
+        args: [],
+      }),
+      '위임 철회',
+    )
   }
 
   return (
@@ -131,29 +257,37 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
       {txError && <div className="notice" style={{ marginBottom: 16 }}>{txError}</div>}
       {keeperUrl && !keeper.online && (
         <div className="notice" style={{ marginBottom: 16 }}>
-          실행자에 연결되지 않았어요. 자동 실행과 승인 요청은 실행자가 켜져 있어야 보여요.
+          실행자에 연결되지 않았어요. 마지막 온체인 기록만 표시하며 자동 판단 상태는 추정하지 않아요.
         </div>
       )}
+      {status?.lastError && <div className="notice" style={{ marginBottom: 16 }}>{status.lastError}</div>}
 
       <div className="grid">
         <div>
-          <CharacterPicker selected={character} onSelect={setCharacter} locked={state.active} />
+          <CharacterPicker selected={character} onSelect={setSelectedCharacter} locked={state.active} />
           {!state.active && (
             <DelegationForm
               tokenSymbol="TOKEN"
               quoteSymbol="USDC"
               tokenAddress={config.token}
               quoteAddress={config.quote}
-              onSubmit={(d) => void send(() => submitDelegation(d), '위임 설정')}
+              characterName={view.name}
+              strategyHash={strategyHash(characterOf(selectedCharacter))}
+              trustFormulaVersion={SUPPORTED_TRUST_FORMULA_VERSION}
+              executor={config.executor}
+              dex={config.dex}
+              onSubmit={(draft) => void submitDelegation(draft)}
               disabled={!guard.canExecute || isPending}
             />
           )}
           {state.active && (
             <DelegationStatus
-              budget={state.budget}
+              budget={state.delegation?.budget}
               budgetSpent={state.budgetSpent}
-              operatingCap={undefined}
-              onRevoke={() => void send(revokeDelegation, '위임 철회')}
+              operatingCap={state.delegation?.operatingCap}
+              operatingSpent={state.operatingSpent}
+              expiry={state.delegation?.expiry}
+              onRevoke={() => void revokeDelegation()}
               canRevoke={guard.canExecute}
               busy={isPending}
             />
@@ -161,15 +295,16 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
           {state.active && (
             <TrustPanel
               trust={trust}
-              autoThreshold={state.autoThreshold}
-              onDisappoint={() => void send(signalDisappointment, '실망 표시')}
-              canDisappoint={guard.canExecute}
+              autoThreshold={state.delegation?.autoThreshold}
+              onDisappoint={() => void signalDisappointment()}
+              canDisappoint={guard.canExecute && lossReport?.status === 'loss' && !userDisappointed}
               busy={isPending}
             />
           )}
         </div>
 
         <div>
+          <LossReportPanel report={lossReport} />
           <CharacterStage
             state={agentState}
             characterId={character}
@@ -178,16 +313,18 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
             loader={live2dLoader}
           />
           <ApprovalQueue
-            items={keeper.pending}
-            capSource={effectiveCap !== undefined && state.autoThreshold !== undefined && effectiveCap < state.autoThreshold ? 'trust' : 'user'}
-            effectiveCap={effectiveCap}
-            currentBlock={state.blockNumber}
-            onApprove={(id) => void keeper.approve(id)}
-            onReject={(id) => void keeper.reject(id)}
-            busy={keeper.busy}
+            items={pending}
+            currentTimestamp={state.blockTimestamp}
+            onApprove={(item) => void approve(item)}
+            onReject={(item) => void reject(item)}
+            onExpire={(item) => void expire(item)}
+            onFinalizeFailure={(item) => void finalizeFailure(item)}
+            failedDecisionId={failedDecisionId}
+            canAct={guard.canExecute}
+            busy={isPending}
           />
-          <PerformancePanel p={perf} />
-          <TrackRecordList records={state.records} />
+          <PerformancePanel p={performance} />
+          <TrackRecordList records={records} explorerBase={config.explorerUrl} />
         </div>
       </div>
     </div>

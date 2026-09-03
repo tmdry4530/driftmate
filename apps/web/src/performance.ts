@@ -1,4 +1,4 @@
-import type { Bps, TrackRecord } from '@soon/shared'
+import type { Bps, CharacterId, TrackRecord } from '@soon/shared'
 import { bps } from '@soon/engine'
 
 /**
@@ -15,18 +15,20 @@ export type Performance = Readonly<{
   slippageCost: bigint
   operatingCost: bigint
   /** 대표값. 거래 규모 대비 총 마찰. 낮을수록 잘한 것이다. */
-  totalFrictionBps: Bps
+  totalFrictionBps: Bps | null
   /** 내역용. 운영비를 뺀 값이라 단독으로 쓰면 실제보다 좋아 보인다. */
-  slippageOnlyBps: Bps
+  slippageOnlyBps: Bps | null
   /** 운영비가 대표값을 얼마나 끌어올렸는지 (R11.7). */
-  operatingImpactBps: Bps
+  operatingImpactBps: Bps | null
 }>
 
-export function computePerformance(records: readonly TrackRecord[]): Performance {
+export function computePerformance(records: readonly TrackRecord[], characterId: CharacterId): Performance {
+  const selected = records.filter((record) => record.characterId === characterId)
   const costByDecision = new Map<string, bigint>()
-  for (const r of records) {
+  for (const r of selected) {
     if (r.kind === 'cost') {
-      costByDecision.set(r.decisionId, (costByDecision.get(r.decisionId) ?? 0n) + r.amount)
+      const key = `${r.delegationId}:${r.decisionId}`
+      costByDecision.set(key, (costByDecision.get(key) ?? 0n) + r.amount)
     }
   }
 
@@ -35,22 +37,24 @@ export function computePerformance(records: readonly TrackRecord[]): Performance
   let operating = 0n
   let count = 0
 
-  for (const r of records) {
+  for (const r of selected) {
     if (r.kind !== 'executed') continue
     count += 1
-    volume += r.valueQuote
+    volume += r.valueInQuote
     slippage += r.frictionQuote
-    operating += costByDecision.get(r.decisionId) ?? 0n
+    operating += costByDecision.get(`${r.delegationId}:${r.decisionId}`) ?? 0n
   }
 
   // 실행에 붙지 않은 운영비(판단만 하고 거래하지 않은 경우)도 비용이다.
-  for (const [decisionId, amount] of costByDecision) {
-    const attached = records.some((r) => r.kind === 'executed' && r.decisionId === decisionId)
+  for (const [key, amount] of costByDecision) {
+    const attached = selected.some(
+      (r) => r.kind === 'executed' && `${r.delegationId}:${r.decisionId}` === key,
+    )
     if (!attached) operating += amount
   }
 
-  const ratio = (part: bigint): Bps =>
-    volume === 0n ? bps(0) : bps(Number((part * 10_000n) / volume))
+  const ratio = (part: bigint): Bps | null =>
+    volume === 0n ? null : bps(Number((part * 10_000n) / volume))
 
   return {
     tradeCount: count,

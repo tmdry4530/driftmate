@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Address } from '@soon/shared'
-import { formatQuote } from '../format.js'
+import type { Address, Bytes32 } from '@soon/shared'
+import { formatBps, formatQuote } from '../format.js'
 import { type DelegationDraft, validateDraft } from '../delegationDraft.js'
 
 export type { DelegationDraft }
@@ -14,6 +14,13 @@ export type { DelegationDraft }
 export function DelegationForm({
   tokenSymbol,
   quoteSymbol,
+  tokenAddress,
+  quoteAddress,
+  characterName,
+  strategyHash,
+  trustFormulaVersion,
+  executor,
+  dex,
   onSubmit,
   disabled,
 }: {
@@ -21,6 +28,11 @@ export function DelegationForm({
   quoteSymbol: string
   tokenAddress: Address
   quoteAddress: Address
+  characterName: string
+  strategyHash: Bytes32
+  trustFormulaVersion: number
+  executor: Address
+  dex: Address
   onSubmit: (d: DelegationDraft) => void
   disabled: boolean
 }) {
@@ -30,6 +42,8 @@ export function DelegationForm({
   const [budget, setBudget] = useState('5000')
   const [opCap, setOpCap] = useState('50')
   const [days, setDays] = useState('30')
+  const [approvalTtlMinutes, setApprovalTtlMinutes] = useState('60')
+  const [slippagePercent, setSlippagePercent] = useState('1')
 
   const result = useMemo(
     () =>
@@ -40,8 +54,10 @@ export function DelegationForm({
         budget,
         operatingCap: opCap,
         days,
+        approvalTtlMinutes,
+        slippagePercent,
       }),
-    [weight, maxTrade, auto, budget, opCap, days],
+    [weight, maxTrade, auto, budget, opCap, days, approvalTtlMinutes, slippagePercent],
   )
 
   const errors = result.ok ? [] : result.errors
@@ -86,6 +102,17 @@ export function DelegationForm({
         <input id="dd" value={days} onChange={(e) => setDays(e.target.value)} inputMode="numeric" />
       </div>
 
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="ttl">승인 요청 유효 시간 (분)</label>
+          <input id="ttl" value={approvalTtlMinutes} onChange={(e) => setApprovalTtlMinutes(e.target.value)} inputMode="numeric" />
+        </div>
+        <div className="field">
+          <label htmlFor="slippage">슬리피지 허용치 (%)</label>
+          <input id="slippage" value={slippagePercent} onChange={(e) => setSlippagePercent(e.target.value)} inputMode="decimal" />
+        </div>
+      </div>
+
       {errors.map((e) => (
         <div key={e} className="err">{e}</div>
       ))}
@@ -93,12 +120,20 @@ export function DelegationForm({
       {/* 서명 전 전문 (R3.3) */}
       {draft && (
         <div className="review">
+          <div className="row"><span className="k">캐릭터</span><span>{characterName}</span></div>
+          <div className="row"><span className="k">전략 계약</span><span title={strategyHash}>{strategyHash.slice(0, 10)}… · v{trustFormulaVersion}</span></div>
           <div className="row"><span className="k">목표 비중</span><span>{tokenSymbol} {draft.tokenWeightBps / 100}% · {quoteSymbol} {draft.quoteWeightBps / 100}%</span></div>
+          <div className="row"><span className="k">기준 자산</span><span title={quoteAddress}>{quoteSymbol} · {quoteAddress}</span></div>
+          <div className="row"><span className="k">대상 자산</span><span title={tokenAddress}>{tokenSymbol} · {tokenAddress}</span></div>
+          <div className="row"><span className="k">실행자</span><span>{executor}</span></div>
+          <div className="row"><span className="k">허용 DEX</span><span>{dex}</span></div>
           <div className="row"><span className="k">한 번에 최대</span><span>{formatQuote(draft.maxTradeValue)}</span></div>
           <div className="row"><span className="k">이 금액까진 알아서</span><span>{formatQuote(draft.autoThreshold)}</span></div>
           <div className="row"><span className="k">전체 예산</span><span>{formatQuote(draft.budget)}</span></div>
           <div className="row"><span className="k">운영비 한도</span><span>{formatQuote(draft.operatingCap)} (예산 안에서)</span></div>
           <div className="row"><span className="k">기간</span><span>{draft.days}일</span></div>
+          <div className="row"><span className="k">승인 요청 TTL</span><span>{String(draft.approvalTtlSeconds / 60n)}분</span></div>
+          <div className="row"><span className="k">슬리피지 허용치</span><span>{formatBps(draft.slippageToleranceBps)}</span></div>
           <div className="row"><span className="k">인출 권한</span><span>나만 (에이전트는 불가)</span></div>
         </div>
       )}

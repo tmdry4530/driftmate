@@ -1,0 +1,12 @@
+{
+  "task_id": "T000",
+  "spec_hash": "822079103c8903195ceb8be6214e4613fff26f6d250cb784951b706a8cc6a69b",
+  "status": "verified",
+  "attempt": 1,
+  "changed_files": [],
+  "verification": [
+    { "command": "forge --version", "exit_code": 0, "summary": "forge 1.8.1-Homebrew" },
+    { "command": "anvil --version", "exit_code": 0, "summary": "anvil 1.8.1-Homebrew" },
+    { "command": "cast --version", "exit_code": 0, "summary": "cast 1.8.1-Homebrew" }
+  ]
+}

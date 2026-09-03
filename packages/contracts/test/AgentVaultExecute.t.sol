@@ -28,14 +28,12 @@ contract AgentVaultExecuteTest is Test {
         usdc = new MockERC3009("Mock USD", "mUSD", 6);
         stranger = new MockERC3009("Stranger", "STR", 18);
 
-        // TOKEN 1개 = 2000 USDC
         token.mint(address(this), 10_000e18);
         usdc.mint(address(this), 20_000_000e6);
         dex = new MockDex(address(token), address(usdc));
         token.approve(address(dex), type(uint256).max);
         usdc.approve(address(dex), type(uint256).max);
         dex.addLiquidity(10_000e18, 20_000_000e6);
-
         rogueDex = new MockDex(address(token), address(usdc));
 
         vault = new AgentVault(alice);
@@ -56,51 +54,69 @@ contract AgentVaultExecuteTest is Test {
 
         d = AgentVault.Delegation({
             executor: executor,
+            characterId: CHAR,
+            strategyHash: bytes32(uint256(1)),
+            trustFormulaVersion: 1,
             quoteAsset: address(usdc),
-            maxTradeValue: 1_000e6, // $1000
-            autoThreshold: 100e6,
-            budget: 5_000e6, // $5000
+            maxTradeValue: 1_000e6,
+            autoThreshold: 1_000e6,
+            budget: 5_000e6,
+            operatingCap: 1_000e6,
             expiry: uint64(block.timestamp + 30 days),
+            approvalTtlSeconds: 1 hours,
+            slippageToleranceBps: 100,
+            targetAsset: address(token),
+            targetAssetBps: 6_000,
             allowedAssets: assets,
             allowedDexes: dexes
         });
     }
 
-    function _order(uint256 amountIn, uint256 minOut) internal view returns (AgentVault.SwapOrder memory) {
+    function _order(uint256 amountIn) internal view returns (AgentVault.SwapOrder memory) {
+        uint256 expected = dex.getAmountOut(address(token), amountIn);
         return AgentVault.SwapOrder({
             dex: address(dex),
             tokenIn: address(token),
             tokenOut: address(usdc),
             amountIn: amountIn,
-            minAmountOut: minOut
+            minAmountOut: (expected * 9_900) / 10_000
         });
     }
 
-    // --- 정상 실행 -----------------------------------------------------------
+    function _auto(bytes32 decisionId, uint256 amountIn) internal returns (uint256) {
+        AgentVault.SwapOrder memory o = _order(amountIn);
+        uint256 nonce = vault.stateNonce();
+        vm.prank(executor);
+        return vault.executeAuto(1, nonce, o, decisionId, EVIDENCE, 0);
+    }
 
     function test_executorCanSwapWithinLimits() public {
-        // 0.2 TOKEN = $400 < 하드캡 $1000
-        vm.prank(executor);
-        uint256 out = vault.execute(_order(0.2e18, 0), bytes32("d1"), CHAR, EVIDENCE);
+        uint256 out = _auto(bytes32("d1"), 0.2e18);
 
         assertGt(out, 0);
         assertEq(usdc.balanceOf(address(vault)), out);
         assertEq(token.balanceOf(address(vault)), 99.8e18);
         assertEq(vault.budgetSpent(), 400e6);
+        assertEq(vault.stateNonce(), 1);
+        assertTrue(vault.decisionRecorded(1, bytes32("d1")));
+        assertTrue(vault.outcomeRecorded(1, bytes32("d1")));
     }
 
-    function test_executeEmitsDecidedAndExecuted() public {
+    function test_executeEmitsSessionBoundDecisionAndOutcome() public {
         vm.recordLogs();
-        vm.prank(executor);
-        vault.execute(_order(0.1e18, 0), bytes32("d2"), CHAR, EVIDENCE);
+        _auto(bytes32("d2"), 0.1e18);
 
-        // 판단과 실행이 한 묶음으로 남는다 (R7.1).
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool sawDecided;
         bool sawExecuted;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("Decided(bytes32,bytes32,uint256,bytes)")) sawDecided = true;
-            if (logs[i].topics[0] == keccak256("Executed(bytes32,address,address,uint256,uint256,uint256)")) {
+            if (logs[i].topics[0] == keccak256("Decided(bytes32,uint256,bytes32,uint32,uint256,bytes)")) {
+                sawDecided = true;
+            }
+            if (
+                logs[i].topics[0]
+                    == keccak256("Executed(bytes32,uint256,address,address,uint256,uint256,uint256,uint256)")
+            ) {
                 sawExecuted = true;
             }
         }
@@ -108,147 +124,297 @@ contract AgentVaultExecuteTest is Test {
         assertTrue(sawExecuted);
     }
 
-    // --- 권한 -------------------------------------------------------------
-
-    function test_nonExecutorCannotExecute() public {
-        vm.prank(attacker);
-        vm.expectRevert(AgentVault.NotExecutor.selector);
-        vault.execute(_order(0.1e18, 0), bytes32("d3"), CHAR, EVIDENCE);
-    }
-
-    function test_ownerIsNotExecutor() public {
-        vm.prank(alice);
-        vm.expectRevert(AgentVault.NotExecutor.selector);
-        vault.execute(_order(0.1e18, 0), bytes32("d4"), CHAR, EVIDENCE);
-    }
-
-    function test_executeBlockedAfterRevoke() public {
-        vm.prank(alice);
-        vault.revoke();
-
-        vm.prank(executor);
-        vm.expectRevert(AgentVault.NotExecutor.selector);
-        vault.execute(_order(0.1e18, 0), bytes32("d5"), CHAR, EVIDENCE);
-    }
-
-    function test_executeBlockedAfterExpiry() public {
-        vm.warp(block.timestamp + 31 days);
-
-        vm.prank(executor);
-        vm.expectRevert(AgentVault.DelegationExpired.selector);
-        vault.execute(_order(0.1e18, 0), bytes32("d6"), CHAR, EVIDENCE);
-    }
-
-    // --- 한도 강제 -----------------------------------------------------------
-
-    function test_exceedingHardCapReverts() public {
-        // 1 TOKEN = $2000 > 하드캡 $1000
-        vm.prank(executor);
-        vm.expectRevert(AgentVault.ExceedsMaxTradeValue.selector);
-        vault.execute(_order(1e18, 0), bytes32("d7"), CHAR, EVIDENCE);
-    }
-
-    function test_disallowedAssetReverts() public {
-        AgentVault.SwapOrder memory o = _order(0.1e18, 0);
-        o.tokenOut = address(stranger);
-
-        vm.prank(executor);
-        vm.expectRevert(AgentVault.AssetNotAllowed.selector);
-        vault.execute(o, bytes32("d8"), CHAR, EVIDENCE);
-    }
-
-    function test_disallowedDexReverts() public {
-        AgentVault.SwapOrder memory o = _order(0.1e18, 0);
-        o.dex = address(rogueDex);
-
-        vm.prank(executor);
-        vm.expectRevert(AgentVault.DexNotAllowed.selector);
-        vault.execute(o, bytes32("d9"), CHAR, EVIDENCE);
-    }
-
-    function test_duplicateDecisionReverts() public {
-        vm.startPrank(executor);
-        vault.execute(_order(0.1e18, 0), bytes32("dup"), CHAR, EVIDENCE);
-
-        vm.expectRevert(AgentVault.DecisionAlreadyUsed.selector);
-        vault.execute(_order(0.1e18, 0), bytes32("dup"), CHAR, EVIDENCE);
-        vm.stopPrank();
-    }
-
-    function test_slippageBeyondToleranceReverts() public {
-        uint256 expected = dex.getAmountOut(address(token), 0.1e18);
-
-        vm.prank(executor);
-        vm.expectRevert(MockDex.InsufficientOutput.selector);
-        vault.execute(_order(0.1e18, expected + 1), bytes32("d10"), CHAR, EVIDENCE);
-    }
-
-    function test_budgetIsConsumedAcrossTrades() public {
-        vm.startPrank(executor);
-        vault.execute(_order(0.5e18, 0), bytes32("b1"), CHAR, EVIDENCE);
-        uint256 afterFirst = vault.budgetSpent();
-        vault.execute(_order(0.5e18, 0), bytes32("b2"), CHAR, EVIDENCE);
-        uint256 afterSecond = vault.budgetSpent();
-        vm.stopPrank();
-
-        assertEq(afterFirst, 1_000e6); // 0.5 TOKEN × $2000
-
-        // 첫 스왑이 풀 가격을 움직였으므로 같은 수량이라도 두 번째 가치는 약간 작다.
-        // 볼트가 신고된 값이 아니라 그때그때의 스팟을 읽는다는 증거다.
-        uint256 second = afterSecond - afterFirst;
-        assertLt(second, 1_000e6);
-        assertApproxEqRel(second, 1_000e6, 0.001e18); // 0.1% 이내
-        assertEq(vault.budgetRemaining(), 5_000e6 - afterSecond);
-    }
-
-    function test_budgetExhaustionReverts() public {
-        vm.startPrank(executor);
-        for (uint256 i = 0; i < 5; i++) {
-            vault.execute(_order(0.5e18, 0), bytes32(i + 1), CHAR, EVIDENCE); // $1000 × 5 = 예산 전액
+    function _executedValues(Vm.Log[] memory logs) private pure returns (uint256 valueIn, uint256 valueOut) {
+        bytes32 signature = keccak256("Executed(bytes32,uint256,address,address,uint256,uint256,uint256,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] != signature) continue;
+            (,,,, valueIn, valueOut) = abi.decode(logs[i].data, (address, address, uint256, uint256, uint256, uint256));
+            return (valueIn, valueOut);
         }
-        vm.expectRevert(AgentVault.BudgetExhausted.selector);
-        vault.execute(_order(0.1e18, 0), bytes32("over"), CHAR, EVIDENCE);
+    }
+
+    function test_executedRecordsBothQuoteValuesForTokenInput() public {
+        vm.recordLogs();
+        _auto(bytes32("sell"), 0.1e18);
+        (uint256 valueIn, uint256 valueOut) = _executedValues(vm.getRecordedLogs());
+
+        assertEq(valueIn, 200e6);
+        assertGt(valueOut, 0);
+        assertLt(valueOut, valueIn);
+    }
+
+    function test_executedRecordsBothQuoteValuesForQuoteInput() public {
+        usdc.mint(alice, 200e6);
+        vm.startPrank(alice);
+        usdc.approve(address(vault), type(uint256).max);
+        vault.deposit(address(usdc), 200e6);
+        vault.setDelegation(_delegation());
         vm.stopPrank();
-    }
 
-    /// 실행자가 가치를 낮게 신고해 한도를 우회할 수 없어야 한다.
-    function test_valueIsComputedByVaultNotCaller() public {
-        // SwapOrder에는 가치 필드가 없다. 볼트가 DEX에서 직접 읽어 계산한다.
-        vm.prank(executor);
-        vault.execute(_order(0.25e18, 0), bytes32("v1"), CHAR, EVIDENCE);
-
-        // 0.25 TOKEN × $2000 = $500 이 그대로 예산에서 빠진다.
-        assertEq(vault.budgetSpent(), 500e6);
-    }
-
-    // --- 미실행 기록 ---------------------------------------------------------
-
-    function test_notExecutedIsRecorded() public {
+        uint256 expected = dex.getAmountOut(address(usdc), 200e6);
+        AgentVault.SwapOrder memory o = AgentVault.SwapOrder({
+            dex: address(dex),
+            tokenIn: address(usdc),
+            tokenOut: address(token),
+            amountIn: 200e6,
+            minAmountOut: (expected * 9_900) / 10_000
+        });
         vm.recordLogs();
         vm.prank(executor);
-        vault.recordNotExecuted(bytes32("n1"), CHAR, EVIDENCE, 0);
+        vault.executeAuto(2, 0, o, bytes32("buy"), EVIDENCE, 0);
+        (uint256 valueIn, uint256 valueOut) = _executedValues(vm.getRecordedLogs());
 
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool sawNotExecuted;
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("NotExecuted(bytes32,uint8)")) sawNotExecuted = true;
-        }
-        assertTrue(sawNotExecuted);
-        assertTrue(vault.decisionUsed(bytes32("n1")));
+        assertEq(valueIn, 200e6);
+        assertGt(valueOut, 0);
+        assertLt(valueOut, valueIn);
     }
 
-    function test_notExecutedDecisionCannotBeExecutedLater() public {
-        vm.startPrank(executor);
-        vault.recordNotExecuted(bytes32("n2"), CHAR, EVIDENCE, 0);
+    function test_onlyExecutorCanStartDecision() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(attacker);
+        vm.expectRevert(AgentVault.NotExecutor.selector);
+        vault.executeAuto(1, 0, o, bytes32("d3"), EVIDENCE, 0);
 
-        vm.expectRevert(AgentVault.DecisionAlreadyUsed.selector);
-        vault.execute(_order(0.1e18, 0), bytes32("n2"), CHAR, EVIDENCE);
+        vm.prank(alice);
+        vm.expectRevert(AgentVault.NotExecutor.selector);
+        vault.propose(1, 0, o, bytes32("d4"), EVIDENCE, 0);
+    }
+
+    function test_staleDelegationAndNonceRevert() public {
+        vm.startPrank(executor);
+        vm.expectRevert(AgentVault.WrongDelegation.selector);
+        vault.recordNotExecuted(2, 0, bytes32("n1"), EVIDENCE, 6, 0);
+
+        vm.expectRevert(AgentVault.WrongStateNonce.selector);
+        vault.recordNotExecuted(1, 1, bytes32("n1"), EVIDENCE, 6, 0);
         vm.stopPrank();
     }
 
-    function test_nonExecutorCannotRecordNotExecuted() public {
+    function test_autoThresholdAndHardCapAreEnforced() public {
+        AgentVault.Delegation memory d = _delegation();
+        d.autoThreshold = 100e6;
+        vm.prank(alice);
+        vault.setDelegation(d);
+
+        AgentVault.SwapOrder memory autoOrder = _order(0.1e18);
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.AutoThresholdExceeded.selector);
+        vault.executeAuto(2, 0, autoOrder, bytes32("auto"), EVIDENCE, 0);
+
+        AgentVault.SwapOrder memory hardOrder = _order(1e18);
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.ExceedsMaxTradeValue.selector);
+        vault.executeAuto(2, 0, hardOrder, bytes32("hard"), EVIDENCE, 0);
+    }
+
+    function test_disallowedAssetAndDexRevert() public {
+        AgentVault.SwapOrder memory assetOrder = _order(0.1e18);
+        assetOrder.tokenOut = address(stranger);
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.AssetNotAllowed.selector);
+        vault.executeAuto(1, 0, assetOrder, bytes32("asset"), EVIDENCE, 0);
+
+        AgentVault.SwapOrder memory dexOrder = _order(0.1e18);
+        dexOrder.dex = address(rogueDex);
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.DexNotAllowed.selector);
+        vault.executeAuto(1, 0, dexOrder, bytes32("dex"), EVIDENCE, 0);
+    }
+
+    function test_minAmountOutMustEncodeSignedTolerance() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        o.minAmountOut = 0;
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.SlippageTooHigh.selector);
+        vault.executeAuto(1, 0, o, bytes32("slip"), EVIDENCE, 0);
+    }
+
+    function test_failedSwapCanBeFinalizedWithoutDuplicateDecision() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        o.minAmountOut = dex.getAmountOut(address(token), 0.1e18) + 1;
+        vm.prank(executor);
+        vm.expectRevert(MockDex.InsufficientOutput.selector);
+        vault.executeAuto(1, 0, o, bytes32("fail"), EVIDENCE, 0);
+
+        assertEq(vault.stateNonce(), 0);
+        assertFalse(vault.decisionRecorded(1, bytes32("fail")));
+        vm.prank(executor);
+        vault.recordNotExecuted(1, 0, bytes32("fail"), EVIDENCE, 3, 0);
+        assertTrue(vault.outcomeRecorded(1, bytes32("fail")));
+    }
+
+    function test_duplicateDecisionRevertsButNewSessionMayReuseId() public {
+        vm.prank(executor);
+        vault.recordNotExecuted(1, 0, bytes32("same"), EVIDENCE, 6, 0);
+        vm.prank(executor);
+        vm.expectRevert(AgentVault.DecisionAlreadyUsed.selector);
+        vault.recordNotExecuted(1, 1, bytes32("same"), EVIDENCE, 6, 0);
+
+        vm.prank(alice);
+        vault.setDelegation(_delegation());
+        vm.prank(executor);
+        vault.recordNotExecuted(2, 0, bytes32("same"), EVIDENCE, 6, 0);
+        assertTrue(vault.decisionRecorded(2, bytes32("same")));
+    }
+
+    function test_proposalPersistsExactOrderAndEvidenceHashes() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("ask"), EVIDENCE, 0);
+
+        AgentVault.PendingDecision memory pending = vault.pendingDecision();
+        assertTrue(pending.open);
+        assertEq(pending.delegationId, 1);
+        assertEq(pending.proposalNonce, 0);
+        assertEq(pending.decisionId, bytes32("ask"));
+        assertEq(pending.evidenceHash, keccak256(EVIDENCE));
+        assertEq(pending.orderHash, keccak256(abi.encode(1, 0, bytes32("ask"), o, pending.expiresAt)));
+        assertEq(vault.stateNonce(), 1);
+    }
+
+    function test_pendingBlocksEveryNewDecision() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("ask"), EVIDENCE, 0);
+
+        vm.startPrank(executor);
+        vm.expectRevert(AgentVault.PendingOpen.selector);
+        vault.executeAuto(1, 1, o, bytes32("auto"), EVIDENCE, 0);
+        vm.expectRevert(AgentVault.PendingOpen.selector);
+        vault.propose(1, 1, o, bytes32("ask2"), EVIDENCE, 0);
+        vm.expectRevert(AgentVault.PendingOpen.selector);
+        vault.recordNotExecuted(1, 1, bytes32("skip"), EVIDENCE, 6, 0);
+        vm.stopPrank();
+    }
+
+    function test_ownerExecutesOnlyExactPendingOrder() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("ask"), EVIDENCE, 0);
+
+        AgentVault.SwapOrder memory changed = o;
+        changed.minAmountOut++;
+        vm.prank(alice);
+        vm.expectRevert(AgentVault.PendingMismatch.selector);
+        vault.executeApproved(1, 1, bytes32("ask"), changed);
+        changed.minAmountOut--;
+
+        vm.prank(alice);
+        uint256 out = vault.executeApproved(1, 1, bytes32("ask"), o);
+        assertGt(out, 0);
+        assertEq(vault.stateNonce(), 2);
+        assertFalse(vault.pendingDecision().open);
+        assertTrue(vault.outcomeRecorded(1, bytes32("ask")));
+    }
+
+    function test_nonOwnerCannotApproveRejectOrFinalize() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("ask"), EVIDENCE, 0);
+
+        vm.startPrank(attacker);
+        vm.expectRevert(AgentVault.NotOwner.selector);
+        vault.executeApproved(1, 1, bytes32("ask"), o);
+        vm.expectRevert(AgentVault.NotOwner.selector);
+        vault.reject(1, 1, bytes32("ask"));
+        vm.expectRevert(AgentVault.NotOwner.selector);
+        vault.finalizePendingFailure(1, 1, bytes32("ask"), 3);
+        vm.stopPrank();
+    }
+
+    function test_ownerRejectsOnce() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("ask"), EVIDENCE, 0);
+        vm.prank(alice);
+        vault.reject(1, 1, bytes32("ask"));
+
+        assertTrue(vault.outcomeRecorded(1, bytes32("ask")));
+        assertFalse(vault.pendingDecision().open);
+        vm.prank(alice);
+        vm.expectRevert(AgentVault.NoPending.selector);
+        vault.reject(1, 2, bytes32("ask"));
+    }
+
+    function test_anyoneExpiresOnlyAfterDeadline() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("ask"), EVIDENCE, 0);
+        AgentVault.PendingDecision memory pending = vault.pendingDecision();
+
         vm.prank(attacker);
-        vm.expectRevert(AgentVault.NotExecutor.selector);
-        vault.recordNotExecuted(bytes32("n3"), CHAR, EVIDENCE, 0);
+        vm.expectRevert(AgentVault.ApprovalNotExpired.selector);
+        vault.expire(1, 1, bytes32("ask"));
+
+        vm.warp(pending.expiresAt + 1);
+        vm.prank(attacker);
+        vault.expire(1, 1, bytes32("ask"));
+        assertTrue(vault.outcomeRecorded(1, bytes32("ask")));
+    }
+
+    function test_expiredApprovalNeedsOwnerFailureFinalization() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("ask"), EVIDENCE, 0);
+        AgentVault.PendingDecision memory pending = vault.pendingDecision();
+        vm.warp(pending.expiresAt + 1);
+
+        vm.prank(alice);
+        vm.expectRevert(AgentVault.ApprovalExpired.selector);
+        vault.executeApproved(1, 1, bytes32("ask"), o);
+        vm.prank(alice);
+        vault.finalizePendingFailure(1, 1, bytes32("ask"), 3);
+        assertTrue(vault.outcomeRecorded(1, bytes32("ask")));
+    }
+
+    function test_failedApprovedSwapKeepsPendingForOwnerFinalization() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        o.minAmountOut = dex.getAmountOut(address(token), 0.1e18) + 1;
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("fail"), EVIDENCE, 0);
+
+        vm.prank(alice);
+        vm.expectRevert(MockDex.InsufficientOutput.selector);
+        vault.executeApproved(1, 1, bytes32("fail"), o);
+        assertTrue(vault.pendingDecision().open);
+        assertTrue(vault.decisionRecorded(1, bytes32("fail")));
+        assertFalse(vault.outcomeRecorded(1, bytes32("fail")));
+
+        vm.prank(alice);
+        vault.finalizePendingFailure(1, 1, bytes32("fail"), 3);
+        assertFalse(vault.pendingDecision().open);
+        assertTrue(vault.outcomeRecorded(1, bytes32("fail")));
+    }
+
+    function test_revokeAndDepositFinalizePendingOnce() public {
+        AgentVault.SwapOrder memory o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(1, 0, o, bytes32("revoke"), EVIDENCE, 0);
+        vm.prank(alice);
+        vault.revoke();
+        assertTrue(vault.outcomeRecorded(1, bytes32("revoke")));
+        assertFalse(vault.pendingDecision().open);
+
+        vm.prank(alice);
+        vault.setDelegation(_delegation());
+        o = _order(0.1e18);
+        vm.prank(executor);
+        vault.propose(2, 0, o, bytes32("deposit"), EVIDENCE, 0);
+        token.mint(alice, 1e18);
+        vm.prank(alice);
+        vault.deposit(address(token), 1e18);
+        assertTrue(vault.outcomeRecorded(2, bytes32("deposit")));
+        assertFalse(vault.pendingDecision().open);
+    }
+
+    function test_budgetIsConsumedAcrossAutoTrades() public {
+        _auto(bytes32("b1"), 0.5e18);
+        uint256 afterFirst = vault.budgetSpent();
+        _auto(bytes32("b2"), 0.5e18);
+        uint256 afterSecond = vault.budgetSpent();
+
+        assertEq(afterFirst, 1_000e6);
+        assertLt(afterSecond - afterFirst, 1_000e6);
+        assertEq(vault.budgetRemaining(), 5_000e6 - afterSecond);
     }
 }

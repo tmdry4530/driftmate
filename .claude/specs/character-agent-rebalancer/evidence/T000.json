@@ -1,0 +1,13 @@
+{
+  "task_id": "T000",
+  "spec_hash": "43658887d9589c22f9d96d295bdb32fae31b2fb1c98c003d49c4d145d9c57937",
+  "status": "verified",
+  "attempt": 1,
+  "changed_files": [],
+  "verification": [
+    { "command": "forge --version", "exit_code": 0, "summary": "forge 1.8.1-Homebrew" },
+    { "command": "anvil --version", "exit_code": 0, "summary": "anvil 1.8.1-Homebrew" },
+    { "command": "cast --version", "exit_code": 0, "summary": "cast 1.8.1-Homebrew" },
+    { "command": "pnpm contracts:setup", "exit_code": 0, "summary": "forge-std v1.16.2 restored in ignored lib directory" }
+  ]
+}

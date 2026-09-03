@@ -1,4 +1,4 @@
-import type { Address, CharacterId, DecisionId } from './primitives.js'
+import type { Address, DecisionId } from './primitives.js'
 import type { DecisionEvidence } from './decision.js'
 
 export type NotExecutedReason =
@@ -8,6 +8,9 @@ export type NotExecutedReason =
   | 'slippage'
   | 'stale_price'
   | 'budget_exhausted'
+  | 'within_band'
+  | 'below_min_trade'
+  | 'execution_failed'
 
 export type CostKind = 'price_data' | 'narration'
 
@@ -23,21 +26,27 @@ export type TxRef = Readonly<{ txHash?: `0x${string}` }>
 export type TrackRecord =
   | Readonly<{
       kind: 'decided'
+      delegationId: bigint
       decisionId: DecisionId
-      characterId: CharacterId
+      characterId: string
+      trustFormulaVersion: number
       blockNumber: bigint
-      evidence: DecisionEvidence
+      evidence?: DecisionEvidence
+      evidenceError?: 'invalid'
     }> & TxRef
   | Readonly<{
       kind: 'executed'
+      delegationId: bigint
       decisionId: DecisionId
+      characterId: string
+      trustFormulaVersion: number
       blockNumber: bigint
       tokenIn: Address
       tokenOut: Address
       amountIn: bigint
       amountOut: bigint
-      /** 거래 규모 (quote 자산 기준). 마찰비용을 재는 분모다. */
-      valueQuote: bigint
+      valueInQuote: bigint
+      valueOutQuote: bigint
       /**
        * 이 거래에서 새어나간 값 — 슬리피지와 수수료 (quote 기준, 양수).
        *
@@ -49,18 +58,40 @@ export type TrackRecord =
     }> & TxRef
   | Readonly<{
       kind: 'not_executed'
+      delegationId: bigint
       decisionId: DecisionId
+      characterId: string
+      trustFormulaVersion: number
       blockNumber: bigint
       reason: NotExecutedReason
     }> & TxRef
   | Readonly<{
       kind: 'cost'
+      delegationId: bigint
       decisionId: DecisionId
+      characterId: string
+      trustFormulaVersion: number
       blockNumber: bigint
       amount: bigint
       costKind: CostKind
     }> & TxRef
   | Readonly<{
       kind: 'disappointed'
+      delegationId: bigint
+      characterId: string
+      reportId: DecisionId
       blockNumber: bigint
+    }> & TxRef
+  | Readonly<{
+      kind: 'baseline'
+      delegationId: bigint
+      characterId: string
+      blockNumber: bigint
+      quoteAsset: Address
+      pricingDex: Address
+      targetAsset: Address
+      targetBalance: bigint
+      quoteBalance: bigint
+      targetPriceE18: bigint
+      valueQuote: bigint
     }> & TxRef
