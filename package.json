@@ -7,7 +7,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b --pretty",
     "contracts:test": "forge test --root packages/contracts",
-    "contracts:setup": "forge install foundry-rs/forge-std@v1.16.2 --no-git --root packages/contracts",
+    "contracts:setup": "cd packages/contracts && forge install foundry-rs/forge-std@v1.16.2 --no-git",
     "live2d:setup": "node apps/web/live2d/setup.mjs",
     "e2e": "tsx apps/keeper/e2e/run.ts"
   },
