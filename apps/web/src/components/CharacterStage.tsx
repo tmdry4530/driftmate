@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { Narration } from '@soon/shared'
+import { useEffect, useRef, useState } from 'react'
+import type { CharacterId, Narration } from '@soon/shared'
 import { type AgentState, buildLossReport, expressionFor } from '../characterState.js'
 
 /**
@@ -7,10 +7,15 @@ import { type AgentState, buildLossReport, expressionFor } from '../characterSta
  *
  * Live2D 모델을 불러오되, 없거나 실패하면 정적 표현으로 대체하고 나머지 기능은
  * 그대로 돌아간다. SDK는 라이선스 동의가 필요해 저장소에 넣지 않으므로,
- * 지금은 폴백 경로가 기본으로 쓰인다.
+ * SDK 생성물은 라이선스 때문에 Git에서 제외하고 setup 명령으로 복원한다.
  */
 export interface Live2DLoader {
-  load(canvas: HTMLCanvasElement, characterId: string): Promise<{ setExpression(e: string): void }>
+  load(canvas: HTMLCanvasElement, characterId: CharacterId, signal: AbortSignal): Promise<Live2DController>
+}
+
+export interface Live2DController {
+  setExpression(expression: string): void
+  destroy(): void
 }
 
 const FACE: Record<string, { eyes: string; mouth: string; tint: string }> = {
@@ -59,46 +64,82 @@ function Face({ expression }: { expression: string }) {
 
 export function CharacterStage({
   state,
+  characterId,
   characterName,
   narration,
   loader,
 }: {
   state: AgentState
+  characterId: CharacterId
   characterName: string
   narration: Narration | undefined
   loader?: Live2DLoader | undefined
 }) {
   const [live2dReady, setLive2dReady] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const controllerRef = useRef<Live2DController>(undefined)
   const expression = expressionFor(state)
+  const expressionRef = useRef(expression)
+  expressionRef.current = expression
 
   useEffect(() => {
-    if (!loader) return
+    controllerRef.current?.setExpression(expression)
+  }, [expression])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!loader || !canvas) {
+      setLive2dReady(false)
+      return
+    }
     let cancelled = false
-    const canvas = document.getElementById('live2d-canvas') as HTMLCanvasElement | null
-    if (!canvas) return
+    const abortController = new AbortController()
+    controllerRef.current = undefined
+    setLive2dReady(false)
     loader
-      .load(canvas, characterName)
-      .then(() => {
-        if (!cancelled) setLive2dReady(true)
+      .load(canvas, characterId, abortController.signal)
+      .then((controller) => {
+        if (cancelled) {
+          controller.destroy()
+          return
+        }
+        controllerRef.current = controller
+        controller.setExpression(expressionRef.current)
+        setLive2dReady(true)
       })
       .catch(() => {
         // 모델을 못 불러와도 나머지는 그대로 쓴다 (R9.5).
-        if (!cancelled) setLive2dReady(false)
+        if (!cancelled) {
+          controllerRef.current?.destroy()
+          controllerRef.current = undefined
+          setLive2dReady(false)
+        }
       })
     return () => {
       cancelled = true
+      abortController.abort()
+      controllerRef.current?.destroy()
+      controllerRef.current = undefined
     }
-  }, [loader, characterName])
+  }, [loader, characterId])
 
   const loss = state.kind === 'loss' ? buildLossReport(state.pnlBps, characterName) : undefined
 
   return (
     <div className="stage">
-      {live2dReady ? (
-        <canvas id="live2d-canvas" width={132} height={132} />
-      ) : (
-        <Face expression={expression} />
-      )}
+      <div className="character-avatar">
+        <canvas
+          ref={canvasRef}
+          id="live2d-canvas"
+          width={240}
+          height={240}
+          role="img"
+          aria-label={`Live2D 캐릭터: ${characterName}`}
+          aria-hidden={!live2dReady}
+          style={{ visibility: live2dReady ? 'visible' : 'hidden' }}
+        />
+        {!live2dReady && <Face expression={expression} />}
+      </div>
       <div style={{ fontWeight: 600 }}>{characterName}</div>
 
       {/* 손실은 수치를 먼저, 캐릭터 반응을 나중에 (R9.4). */}

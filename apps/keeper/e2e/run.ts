@@ -32,6 +32,7 @@ import { erc20Abi, vaultAbi } from '../src/abi.js'
 
 const PORT = 8546
 const RPC = `http://127.0.0.1:${PORT}`
+const ANVIL_BIN = process.env.ANVIL_BIN ?? 'anvil'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = resolve(HERE, '../../../packages/contracts/out')
 
@@ -60,7 +61,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 async function startAnvil(): Promise<ChildProcess> {
-  const proc = spawn(`${process.env.HOME}/.foundry/bin/anvil`, ['--port', String(PORT), '--silent'], {
+  const proc = spawn(ANVIL_BIN, ['--port', String(PORT), '--silent'], {
     stdio: 'ignore',
   })
   for (let i = 0; i < 50; i++) {

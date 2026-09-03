@@ -1,142 +1,123 @@
 ---
 feature: character-agent-rebalancer
-status: approved
+status: review
 created: 2026-08-31
+updated: 2026-09-03
 related:
   - requirements.md
   - design.md
   - acceptance.md
 ---
 
-# 캐릭터 에이전트 리밸런서 — 태스크
+# 캐릭터 에이전트 리밸런서 — 구현 태스크
 
-> 체크박스가 실행 상태의 단일 진실 공급원이다. 태스크 완료 = 완료 조건 + 연결된 인수 조건 충족 + 관련 테스트 통과.
->
-> 1인 순차 실행을 전제로 정렬했다. 순수 엔진 → 컨트랙트 → 실행자 → 웹앱 → 통합 순이며, 앞 단계가 뒤 단계의 검증 기반이 된다.
+> 2026-09-03 승인된 requirements.md와 design.md를 기준으로 다시 작성했다. 이전 T1~T23의 완료 표시는 현재 계약을 검증하지 못하므로 폐기하며, 아래 체크박스만 실행 상태의 원천으로 사용한다.
 
-## A. 기반
+## 실행 원칙
 
-- [x] **T1. 모노레포 스캐폴딩**
-  - 내용: pnpm workspace 구성(`packages/engine`, `packages/shared`, `packages/contracts`, `apps/web`, `apps/keeper`), TypeScript·Vitest·Foundry 초기화, lint 설정.
-  - 요구사항: —
-  - 완료 조건: 루트에서 `pnpm test`와 `forge test`가 빈 상태로 통과한다. `packages/engine/package.json`에 런타임 의존성이 없다.
+- 태스크는 위에서 아래로 진행하며 선행 태스크가 통과하기 전 다음 태스크를 완료 처리하지 않는다.
+- 완료는 코드 작성이 아니라 명시된 테스트와 인수 조건이 모두 통과한 상태다.
+- 기존 결정 엔진, 지갑 가드, 화면 골격, Narrator 검증기, Live2D 로더, MockDex와 Anvil harness는 가능한 범위에서 재사용한다.
+- 새 DB, 다중 DEX 라우터, 전략·공식 레지스트리, 승인 API는 만들지 않는다.
+- TWAP·외부 오라클, 실제 x402 결제와 managed balance는 승인된 MVP 이후 항목으로 남긴다.
 
-- [x] **T2. 공유 타입 정의**
-  - 내용: `packages/shared`에 `PriceSnapshot`, `PortfolioTarget`, `StrategyParams`, `Holding`, `CostEstimate`, `Decision`, `DecisionEvidence`, `Narration`, `TrackRecord`, `TrustResult`, `GateResult`, `SignedLimits` 정의. 금액은 `bigint`, 비율은 basis point 정수.
-  - 요구사항: R2.4, R4.8, R10.3
-  - 완료 조건: `DecisionInput`에 신뢰 점수 필드가 없고, `TrackRecord`에 접속 횟수·결제 이력 필드가 없다. 부동소수 타입이 금액·비율 어디에도 쓰이지 않는다.
+- [ ] **T0. Foundry 실행 환경 복구**
+  - 내용: Foundry 도구를 설치하거나 기존 설치 경로를 PATH에 연결하고 프로젝트 설정은 그대로 사용한다. 저장소 파일이나 전역 Git 설정은 바꾸지 않는다.
+  - 완료 조건: `forge`, `anvil`, `cast`가 PATH에서 실행된다.
+  - 검증: `forge --version`, `anvil --version`, `cast --version`.
 
-## B. 순수 엔진
+## A. 계약과 순수 로직
 
-- [x] **T3. RuleEngine.decide 구현**
-  - 내용: 이탈폭 계산, 목표 복귀 거래 산출, 밴드 내 무거래, 비용 대비 효익 판정, 스냅샷 만료 판정. 캐릭터 2종(`timid`·`easygoing`) 파라미터 정의. `Decision.id`를 입력 해시로 생성.
-  - 요구사항: R2.1, R2.3, R4.1~R4.7
-  - 완료 조건: 동일 입력 1,000회 반복에서 출력 해시가 동일하다. 시스템 시계를 조작해도 결과가 같다. 밴드 내 입력에서 거래 목록이 비어 있다. 비용이 이탈 가치를 넘는 입력에서 `skipReason: 'cost_exceeds_benefit'`이 나온다.
+- [ ] **T1. 공유 위임·상태 타입과 해시 규약**
+  - 내용: `Delegation`, `PendingDecision`, `PortfolioBaseline`, `KeeperStatus`, `LossReport`와 `(delegationId, decisionId)` 복합 식별자를 공유 타입으로 정의한다. `rebalanceStyleCode`와 `strategyHash = keccak256(abi.encode(...))`를 웹·Keeper가 함께 쓰는 한 함수로 고정하고 `trustFormulaVersion = 1`만 지원한다.
+  - 수정 범위: 타입 전용 `packages/shared/src`, `packages/engine/src/characters.ts`, 기존 viem을 쓰는 `apps/keeper/src/delegation.ts`와 고정 벡터 테스트. engine의 런타임 의존성 0은 유지한다.
+  - 요구사항: R2.3~R2.5, R3.1~R3.3, R7.1, R10.1.
+  - 완료 조건: ABI 인코딩 입력과 기대 hash가 고정 벡터로 잠기고, 상태 타입에 delegationId·configHash·stateNonce가 빠지지 않는다.
+  - 검증: `pnpm vitest run packages/shared packages/engine/src`, `pnpm typecheck`.
 
-- [x] **T4. TrustScore.computeTrust 구현**
-  - 내용: 트랙레코드에서 순성과·약속 이행을 집계해 점수와 재량 한도 산출. 기여도 목록 반환. 공식 버전 태깅. 실망 신호 반영.
-  - 요구사항: R10.1, R10.2, R10.3, R10.5, R10.6, R10.7, R10.9
-  - 완료 조건: 같은 이벤트 목록이면 같은 점수가 나온다. 순성과가 낮아진 픽스처에서 점수와 재량이 함께 내려간다. 실망 신호가 포함된 픽스처에서 즉시 하향된다. 결제·접속 데이터를 넣을 입력 경로가 없다.
+- [ ] **T2. AgentVault 위임 원문과 세션 기준점**
+  - 선행: T0, T1.
+  - 내용: 승인된 `Delegation` 전체 필드, `delegationId`, `stateNonce`, `budgetSpent`, `operatingSpent`, `configHash`, `PortfolioBaseline`을 구현한다. 정확히 2자산·1 DEX, target/quote 페어, 목표 비중, 기간과 상한 관계를 검증한다. 새 위임은 세션 상태를 초기화한다.
+  - 입출금: 활성 위임 중 deposit·withdraw는 위임을 먼저 종결한다. withdraw는 가격 장애와 무관하게 owner에게만 가능하고, false를 반환하는 ERC-20도 실패 처리한다.
+  - 수정 범위: `packages/contracts/src/AgentVault.sol`, `packages/contracts/test/AgentVaultDelegation.t.sol`, 배포 스크립트.
+  - 요구사항: R1.2, R2.3~R2.5, R3.1~R3.7, R9.4와 승인된 세션 손익 정책.
+  - 완료 조건: Solidity가 T1의 전략 hash 고정 벡터와 일치한다. 설정 round-trip, DEX 페어 거부, 기준점 이벤트, 재위임 초기화, 입출금 철회, 가격 장애 중 인출과 ERC-20 false 반환이 Forge 테스트로 증명된다.
+  - 검증: `pnpm contracts:test -- --match-contract AgentVaultDelegationTest`.
 
-- [x] **T5. ApprovalGate.resolveGate 구현**
-  - 내용: `min(사용자 상한, 신뢰 재량)`으로 유효 임계값 산출, auto/ask/reject 판정, `capSource` 표기, 하드캡 초과 거부.
-  - 요구사항: R5.1, R5.2, R5.6, R5.7, R5.8, R10.8
-  - 완료 조건: 신뢰 점수만 다르고 나머지가 같은 두 입력에서 `Decision`은 동일하고 `GateResult`만 달라진다. 신뢰가 최대여도 유효 임계값이 사용자 설정을 넘지 않는다. 하드캡 초과 시 승인 여부와 무관하게 `reject`가 나온다.
+- [ ] **T3. 온체인 pending과 owner 승인 상태 머신**
+  - 선행: T2.
+  - 내용: `executeAuto`, `propose`, `executeApproved`, `reject`, `expire`, `finalizePendingFailure`, `recordNotExecuted`를 구현한다. 모든 새 판단은 expectedDelegationId·expectedStateNonce를 검사하고, pending 중 새 판단을 컨트랙트에서 막는다. 철회·입출금·재위임은 열린 pending을 한 번만 종결한다.
+  - 승인 경계: 자동 실행은 사용자 `autoThreshold`와 하드캡을 온체인에서 강제한다. 승인 실행은 owner가 저장된 proposalNonce·orderHash·만료 시각과 일치하는 주문만 직접 실행한다.
+  - 수정 범위: `AgentVault.sol`, `AgentVaultExecute.t.sol`, 미실행 reason 코드.
+  - 요구사항: R3.6, R5.1~R5.6, R6.1~R6.6, R7.4.
+  - 완료 조건: stale nonce·위임, autoThreshold 우회, 잘못된 주문, pending 중 경합, 만료와 중복 종결이 모두 차단된다. 승인 실행 실패는 기존 판단·비용을 중복하지 않고 owner가 종결한다.
+  - 검증: `pnpm contracts:test -- --match-contract AgentVaultExecuteTest`.
 
-## C. 컨트랙트
+- [ ] **T4. 비용 원자성·양방향 실행 기록·실망 기록**
+  - 선행: T3.
+  - 내용: price cost를 판단 종결과 같은 트랜잭션에 기록하고, 전체 예산과 operatingCap을 함께 강제한다. Narrator 비용은 현재 `(delegationId, decisionId)`에 한 번만 허용한다. `Executed`에 양방향 `valueInQuote`·`valueOutQuote`를 남기고 reportId별 실망 중복을 막는다. 기존 ERC-3009 검증용 토큰 구현을 유지하고 다시 검증한다.
+  - 수정 범위: `AgentVault.sol`, `AgentVaultBudget.t.sol`, `AgentVaultExecute.t.sol`, `MockERC3009.sol`, `Mocks.t.sol`.
+  - 요구사항: R7.1, R7.4, R7.6~R7.7, R9.7, R10.6, R11.1~R11.6.
+  - 완료 조건: 고아 price cost가 없고, 두 예산 상한·양방향 마찰·Narrator 1회·실망 1회 규칙이 단위·fuzz 테스트로 증명된다.
+  - 검증: `pnpm contracts:test -- --match-contract AgentVaultBudgetTest`, `pnpm contracts:test -- --match-contract AgentVaultExecuteTest`, `pnpm contracts:test -- --match-contract MockERC3009Test`.
 
-- [x] **T6. 검증용 토큰·DEX 배포**
-  - 내용: `MockERC3009`(ERC-20 + `transferWithAuthorization`) 2종, 상수곱 `MockDex`, Anvil 배포 스크립트, 초기 유동성 주입.
-  - 요구사항: R11.4
-  - 완료 조건: Anvil에서 배포 후 스왑이 성사되고 풀 비율이 변한다. `transferWithAuthorization` 서명 경로가 테스트로 검증된다.
+## B. 읽기 모델과 Keeper
 
-- [x] **T7. AgentVault — 예치·출금·위임**
-  - 내용: `deposit`, `withdraw`(owner 전용), `setDelegation`, `revoke`, `Delegation` 구조체와 상태 저장, `DelegationSet` 이벤트.
-  - 요구사항: R1.2, R3.2~R3.6
-  - 완료 조건: owner가 아닌 주소의 `withdraw`가 revert 한다. 실행자 키로 자산을 볼트 밖으로 뺄 수 있는 경로가 없음을 테스트로 확인한다. `revoke` 후 실행이 즉시 거부된다. 만료 후 실행이 거부된다.
+- [ ] **T5. ABI·체인 어댑터·이벤트 읽기 모델**
+  - 선행: T4.
+  - 내용: 새 함수·이벤트 ABI와 전체 위임·baseline·pending·nonce 조회를 반영한다. 이벤트를 2-pass로 읽어 `(delegationId, decisionId) → characterId/formulaVersion`을 만든 뒤 실행·미실행·비용을 조인한다. evidence가 손상돼도 인덱스 연결은 보존한다.
+  - 수정 범위: `packages/shared/src/record.ts`, `apps/keeper/src/abi.ts`, `ports.ts`, `viemAdapters.ts`, `records.ts`, `index.ts`, 관련 테스트. TrackRecord 고정값을 쓰는 engine·keeper·web 단위 테스트와 E2E fixture도 같은 커밋에서 기계적으로 갱신한다.
+  - 요구사항: R7.1~R7.7, R10.1, R10.9, R11.7.
+  - 완료 조건: 같은 decisionId가 서로 다른 위임에서 섞이지 않고, 손상 evidence에서도 캐릭터·결과·비용 연결과 트랜잭션 참조가 유지된다.
+  - 검증: `pnpm vitest run apps/keeper/src/records.test.ts`, `pnpm typecheck`.
 
-- [x] **T8. AgentVault — 실행과 한도 강제**
-  - 내용: `execute`(실행자 전용), 대상 자산·DEX 화이트리스트 검증, 1회 최대 거래 금액 검증, 슬리피지 하한 검증, `decisionId` 중복 방지, `Decided`·`Executed`·`NotExecuted` 이벤트.
-  - 요구사항: R6.1~R6.6, R7.1, R7.4
-  - 완료 조건: 한도 초과·화이트리스트 밖 자산·중복 `decisionId` 실행이 각각 revert 한다. 슬리피지 허용치를 넘는 체결에서 실행이 취소된다. 미실행 판단이 `NotExecuted`로 기록된다.
+- [ ] **T6. 캐릭터별 신뢰·실행 효율·세션 손익**
+  - 선행: T5.
+  - 내용: `computeTrust(records, characterId, formulaVersion)`와 `computePerformance(records, characterId)`로 경계를 바꾼다. 누적 거래 가치가 0이면 비율은 `N/A`로 둔다. baseline·현재 평가액·operatingSpent로 세션 손익과 reportId를 계산하고, 기대 잔고 불일치는 `cashflow_unknown`으로 중단한다.
+  - 수정 범위: `packages/engine/src/trust.ts`, `packages/engine/src/pnl.ts`, `apps/web/src/performance.ts`, 공유 record/trust 타입과 관련 테스트. 새 함수 시그니처를 직접 호출하는 `apps/keeper/src/keeper.ts`, `apps/keeper/e2e/run.ts`, `apps/web/src/App.tsx`는 동작 변경 없이 기계적으로 맞춘다.
+  - 요구사항: R7.7, R9.2~R9.4, R10.1~R10.9, R11.7.
+  - 완료 조건: 캐릭터 간 기록이 격리되고, 미지원 공식은 fail-closed하며, 같은 근거는 같은 PnL·reportId를 만든다. 시장 손익은 신뢰 입력에 들어가지 않는다.
+  - 검증: `pnpm vitest run packages/engine/src apps/web/src/performance.test.ts`, `pnpm typecheck`.
 
-- [x] **T9. AgentVault — 운영비와 단일 예산**
-  - 내용: `chargeCost`, 거래 지출과 운영비가 같은 `budget`을 차감하도록 구현, `CostCharged` 이벤트, `signalDisappointment`.
-  - 요구사항: R3.7, R7.6, R10.6, R11.1, R11.2, R11.6
-  - 완료 조건: 운영비를 반복 청구해 거래 한도를 우회하려는 시나리오가 fuzzing 포함 테스트에서 실패한다. 예산 소진 후 `chargeCost`와 `execute`가 모두 거부된다. `signalDisappointment`가 owner 전용이고 이벤트를 남긴다.
+- [ ] **T7. Keeper의 온체인 설정 소비와 결정 파이프라인**
+  - 선행: T5, T6.
+  - 내용: `KeeperConfig`에는 RPC·볼트·블록 유효성·가스 설정만 남긴다. 매 tick 온체인 위임을 읽어 전략 hash·공식 버전을 검증하고, 같은 블록의 잔고·spot·getAmountOut으로 슬리피지까지 포함한 최종 판단을 만든다.
+  - 상태·비용: 동시에 한 tick만 허용하고 pending은 체인에서 복원한다. `PaymentAdapter`는 `quote/acquire`만 담당하며, 성공한 가격 스냅샷의 비용은 execute/propose/not-executed 경로가 판단과 함께 기록한다. 자동 실행 revert는 Keeper가 같은 복합 키의 실패로 마감한다.
+  - 수정 범위: `apps/keeper/src/keeper.ts`, `payment.ts`, `ports.ts`, `viemAdapters.ts`, `vaultBudgetAdapter.ts`, `keeper.test.ts`.
+  - 요구사항: R2.3, R3.1~R3.4, R4.1~R4.8, R5.1~R5.4, R5.7, R6.3, R11.1~R11.5.
+  - 완료 조건: 환경·UI shadow 설정 없이 온체인 값만 판단에 쓰고, price cost와 Decided가 함께 성공하거나 함께 실패한다. 신뢰 변화는 거래 내용이 아니라 Gate 결과만 바꾸며 유효 임계값은 사용자 autoThreshold를 넘지 않는다. 기대 잔고가 실제 잔고와 다르면 `cashflow_unknown`으로 판단·실행을 중단한다.
+  - 검증: `pnpm vitest run apps/keeper/src/keeper.test.ts`, `pnpm typecheck`.
 
-## D. 실행자
+- [ ] **T8. 읽기 전용 status API와 실제 Narrator**
+  - 선행: T7.
+  - 내용: API를 `GET /status` 하나로 합치고 승인·거절 POST를 제거한다. phase, delegationId/configHash, pending, snapshot, lastDecision, narration, lossReport, lastError를 반환한다. 기존 수치 검증·금지 표현·timeout·템플릿을 Keeper에서 native `fetch` 기반 LLM 어댑터와 연결한다.
+  - 비용·복구: Narrator 비용 확정 뒤 decisionId마다 한 번 호출하고, 실패·재시작·근거 불일치는 재과금 없이 템플릿으로 처리한다. 브라우저에는 API 키를 두지 않는다.
+  - 수정 범위: `apps/keeper/src/server.ts`, `keeper.ts`, narrator 모듈·테스트, `apps/web/src/narrator`의 중복 코드.
+  - 요구사항: R8.1~R8.5, R9.2, R11.1, R11.5.
+  - 완료 조건: 상태 전환과 stale 식별자 거부, LLM 성공·timeout·잘못된 수치·재시작 경로가 테스트된다. 외부 변경 API는 존재하지 않는다.
+  - 검증: `pnpm vitest run apps/keeper/src`, `pnpm typecheck`.
 
-- [x] **T10. PriceSource와 스냅샷**
-  - 내용: DEX 풀 스팟 조회 → `PriceSnapshot`(블록번호·풀주소·값·유효시한) 생성. 조회 실패·만료 처리.
-  - 요구사항: R4.6, R6.4
-  - 완료 조건: 스냅샷이 불변 객체로 생성되고 블록번호가 기록된다. 조회 실패 시 판단을 수행하지 않고 데이터 부재를 보고한다.
+## C. 웹과 통합
 
-- [x] **T11. CostMeter와 VaultBudgetAdapter**
-  - 내용: `PaymentAdapter` 인터페이스, 볼트 예산 차감 구현체, 비용을 `decisionId`에 연결해 기록, 예산 소진 처리.
-  - 요구사항: R11.1, R11.2, R11.3, R11.5
-  - 완료 조건: 회계 로직이 결제 수단 타입을 참조하지 않는다(어댑터 교체로 다른 결제 경로를 붙일 수 있음을 스텁 어댑터로 검증). 예산 소진 시 유료 호출이 중단되고 판단이 수행되지 않는다.
+- [ ] **T9. 웹 위임·owner 승인·손실·Live2D 연결**
+  - 선행: T8.
+  - 내용: 서명 전에 캐릭터·전략 hash/version·목표·DEX·slippage·TTL·예산·operatingCap 원문을 표시하고, 제출 후 체인 round-trip이 일치해야 활성화한다. 활성 캐릭터와 목표는 온체인 위임에서 읽는다.
+  - 승인·상태: `/status`만 조회하고 delegation/config/decision 식별자가 다른 데이터는 버린다. 승인·거절·실패 종결은 owner 지갑이 컨트랙트를 직접 호출하고 receipt 확정 뒤 새로고침한다. `deriveAgentState`는 `deciding → awaiting_approval → loss → executed → idle` 순서를 지킨다.
+  - 손실·표현: 예치·인출과 위임 종료 고지, 세션 손익 근거 우선 표시, report별 실망 버튼, 캐릭터별 신뢰·실행 효율을 연결한다. 기존 Live2D Haru·Ren과 정적 폴백을 유지한다.
+  - 수정 범위: `apps/web/src/App.tsx`, hooks, 위임·승인·상태·성과·신뢰 컴포넌트, `characterState.ts`, 관련 테스트·스타일.
+  - 요구사항: R1.1~R1.5, R2.1~R3.5, R5.3~R5.5, R5.8, R6.3, R6.5, R7.2~R7.7, R9.1~R9.8, R10.4, R10.6, R10.9, R11.7.
+  - 완료 조건: HTTP 승인 경로가 없고 owner receipt, 손실 근거, deciding/loss 표현과 정적 폴백이 한 화면 흐름으로 연결된다. 실제 브라우저에서 Haru·Ren canvas 렌더링, deciding·승인·손실 전환과 Live2D 런타임 차단 시 SVG 폴백을 증거와 함께 확인한다.
+  - 검증: `pnpm vitest run apps/web/src`, `pnpm typecheck`, `pnpm --filter @soon/web build`, `KEEP=1 pnpm e2e`로 환경을 띄운 뒤 로컬 브라우저 smoke.
 
-- [x] **T12. Keeper tick 파이프라인**
-  - 내용: 예산·기간 확인 → 비용 견적 → 스냅샷·비용 차감 → `decide` → `computeTrust`·`resolveGate` → 실행/승인요청/미실행 기록. 주기 실행 루프.
-  - 요구사항: R3.4, R4.7, R5.1, R5.2, R11.2
-  - 완료 조건: 비용 견적이 이탈 가치를 넘으면 **가격 데이터를 사기 전에** skip이 기록된다. 만료·소진 상태에서 자동 실행이 멈춘다. 자동 실행 경로와 승인 요청 경로가 각각 동작한다.
+- [ ] **T10. Anvil E2E와 인수 조건 전수 재판정**
+  - 선행: T9.
+  - 내용: 배포 → 예치 → 전체 위임·baseline → 밴드 내 미실행 → 양방향 자동 실행 → 캐릭터별 신뢰 → 손실·실망 → 낮아진 재량의 pending → owner 승인·거절·만료·실패 → Narrator 1회·폴백 → 직접 dust 전송의 `cashflow_unknown` 차단 → 가격 장애 중 인출·위임 종료를 하나의 재현 가능한 흐름으로 검증한다.
+  - 정리: 더는 쓰지 않는 Keeper shadow 설정, 메모리 pending, 승인 API와 중복 narrator 코드를 삭제한다. acceptance.md의 과거 집계를 폐기하고 75개 요구사항을 현재 코드·테스트·화면 근거로 다시 판정한다.
+  - 수정 범위: `apps/keeper/e2e/run.ts`, 관련 설정·죽은 코드, `acceptance.md`, 완료된 `tasks.md` 체크박스.
+  - 요구사항: 성공 기준 1~10과 R1~R11 전체.
+  - 완료 조건: 모든 요구사항이 충족이거나 남은 미충족이 근거와 함께 명시되며, 전체 검증 명령이 통과한다.
+  - 검증: `pnpm test`, `pnpm typecheck`, `pnpm contracts:test`, `pnpm --filter @soon/web build`, `pnpm e2e`.
 
-## E. 웹앱
+## 완료 정의
 
-- [x] **T13. 지갑 연결과 체인 가드**
-  - 내용: wagmi 연결, 주소·체인 ID 표시, 미지원 체인 시 실행 비활성화와 전환 안내, 연결 해제 처리. 체인 설정을 환경값으로 주입.
-  - 요구사항: R1.1, R1.3, R1.4, R1.5
-  - 완료 조건: 미지원 체인에서 실행 UI가 비활성화된다. 코드에 체인 ID가 하드코딩되어 있지 않다. 연결이 끊기면 진행 중 실행이 중단된다.
-
-- [x] **T14. 캐릭터 선택 화면**
-  - 내용: 2종 캐릭터 목록, 성향 서술 문장과 대응 파라미터 병기, 선택 시 전략 적용, 운용 중 변경 시 위임 만료 처리.
-  - 요구사항: R2.1~R2.5
-  - 완료 조건: 각 캐릭터의 허용 이탈폭이 문장과 수치 양쪽으로 표시된다. UI에서 파라미터를 직접 수정할 수 없다. 캐릭터 변경 시 새 위임 설정을 요구한다.
-
-- [x] **T15. 목표 비중과 위임 설정 서명**
-  - 내용: 목표 비중 입력(합 100% 검증), 위임 항목 입력(1회 최대 거래액·자동 실행 임계값·유효 기간·대상 자산·운영비 한도), 서명 전 전문 표시, 예치 흐름.
-  - 요구사항: R3.1, R3.2, R3.3
-  - 완료 조건: 합이 100%가 아니면 저장이 거부된다. 서명 화면에 설정 전문이 사람이 읽을 수 있는 형태로 표시된다. 예치 후 볼트 잔고가 화면에 반영된다.
-
-- [x] **T16. 트랙레코드와 순성과 표시**
-  - 내용: 온체인 이벤트 조회로 이력 구성, 미실행 판단 포함 표시, 트랜잭션 참조 링크, 누적 운영비와 순성과 표시.
-  - 요구사항: R7.2, R7.4, R7.5, R7.6, R7.7, R11.7, R10.9
-  - 완료 조건: 운영비 차감 전 수익률이 단독으로 표시되는 화면이 없다. 미실행 판단이 목록에 나타난다. 각 항목에서 온체인 트랜잭션을 확인할 수 있다. 신뢰 점수에서 기여 기록으로 이동할 수 있다.
-
-- [x] **T17. 승인 요청 화면**
-  - 내용: 승인 대기 목록, 거래 내역·금액·판단 근거·초과분·`capSource` 표시, 승인/거절 처리, 유효 시간 만료.
-  - 요구사항: R5.3, R5.4, R5.5, R5.8
-  - 완료 조건: 유효 임계값이 사용자 설정과 신뢰 재량 중 무엇으로 정해졌는지 표시된다. 만료된 요청이 실행되지 않고 기록된다. 거절이 트랙레코드에 남는다.
-
-- [x] **T18. Narrator — LLM 격리와 검증**
-  - 내용: `narrate(evidence, persona)` 구현, 근거 밖 수치 검출 후 폐기, 템플릿 폴백, 금지 표현 필터, 타임아웃 처리.
-  - 요구사항: R8.1~R8.5, R9.6
-  - 완료 조건: `Narration`을 실행 경로 함수에 전달하는 코드가 컴파일되지 않음을 타입 테스트로 확인한다. 근거에 없는 수치를 포함한 응답이 폐기되고 템플릿으로 대체된다. LLM 실패 시 실행 흐름이 중단되지 않는다.
-
-- [x] **T19. Live2D 렌더링과 톤 규율**
-  - 내용: Cubism SDK 연동, 샘플 모델 2종 로드, 상태별 표정·모션 매핑(대기·판단·승인요청·실행완료·손실), 손실 구간 표정 제한, 로드 실패 시 정적 이미지 폴백.
-  - 요구사항: R9.1~R9.5
-  - 완료 조건: 손실 상태에서 축하 계열 표정이 상태 머신에서 선택 불가능하다(설정이 아니라 코드 구조로). 손실 보고 시 수치가 캐릭터 반응보다 먼저 표시된다. 모델 로드 실패에도 나머지 기능이 동작한다.
-
-- [x] **T20. 실망 표시와 재량 조절**
-  - 내용: 손실 보고 화면의 실망 표시 동작, `signalDisappointment` 호출, 신뢰·재량 갱신 표시, 변경 근거 안내.
-  - 요구사항: R10.4, R10.6, R10.7, R9.7
-  - 완료 조건: 실망 표시 직후 재량 한도가 좁아지고 그 사실과 근거가 화면에 표시된다. 결제나 상호작용으로 신뢰를 회복하는 UI 경로가 존재하지 않는다. 캐릭터 반응이 변명하거나 책임을 전가하지 않는다.
-
-## F. 통합과 마무리
-
-- [x] **T21. E2E 최소 루프**
-  - 내용: Anvil 위에서 예치 → 위임 서명 → 가격 이동 → 판단 → 자동 실행 → 이벤트 기록 → 순성과 표시 → 신뢰 반영까지 자동 검증. 임계값 초과 시 승인 요청 경로도 함께.
-  - 요구사항: 성공 기준 1~10
-  - 완료 조건: 자동 실행 경로와 승인 요청 경로가 한 번의 테스트 실행에서 모두 통과한다. 실행 후 트랙레코드에 판단·실행·비용이 한 묶음으로 남는다.
-
-- [x] **T22. 인수 조건 전수 점검**
-  - 내용: requirements.md의 75개 인수 조건을 항목별로 검증하고 충족 여부를 표로 정리. 미충족 항목 해결.
-  - 요구사항: 전체
-  - 완료 조건: 모든 인수 조건이 충족으로 판정되거나, 미충족 항목이 사유와 함께 명시적으로 기록되고 해결된다.
-
-- [x] **T23. ELI5 설명 자료 정정**
-  - 내용: 공개된 설명 페이지의 "돈은 지갑에서 안 나감" 그림을 볼트 구조에 맞게 "사용자만 열 수 있는 잠긴 서랍"으로 수정.
-  - 요구사항: R1.2 (설명 정확성)
-  - 완료 조건: 설명 자료가 실제 구현 구조와 일치한다.
+T10까지 완료하고 acceptance.md의 75개 항목을 현재 근거로 재판정한 뒤에만 기능 상태를 `complete`로 바꾼다. 문서 숫자와 테스트 출력이 다르면 테스트 출력을 기준으로 문서를 고친다.

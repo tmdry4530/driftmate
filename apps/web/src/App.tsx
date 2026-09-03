@@ -8,6 +8,7 @@ import { viewOf } from './characters.js'
 import { computePerformance } from './performance.js'
 import type { AgentState } from './characterState.js'
 import { templateNarration } from './narrator/narrate.js'
+import { live2dLoader } from './live2d.js'
 import { useVault, vaultAbiParsed } from './hooks/useVault.js'
 import { useKeeperApi } from './hooks/useKeeperApi.js'
 import { WalletBar } from './components/WalletBar.js'
@@ -169,7 +170,13 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
         </div>
 
         <div>
-          <CharacterStage state={agentState} characterName={view.name} narration={narration} />
+          <CharacterStage
+            state={agentState}
+            characterId={character}
+            characterName={view.name}
+            narration={narration}
+            loader={live2dLoader}
+          />
           <ApprovalQueue
             items={keeper.pending}
             capSource={effectiveCap !== undefined && state.autoThreshold !== undefined && effectiveCap < state.autoThreshold ? 'trust' : 'user'}

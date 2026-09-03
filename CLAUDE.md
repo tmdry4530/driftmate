@@ -20,8 +20,11 @@ pnpm typecheck
 pnpm contracts:test     # forge test
 pnpm e2e                # Anvil 띄우고 최소 루프 완주 검증
 KEEP=1 pnpm e2e         # 검증 후 체인·실행자를 띄운 채로 둔다 (.env 자동 갱신)
+pnpm live2d:setup [ZIP] # Cubism SDK for Web을 로컬 자산으로 설치·빌드
 pnpm -C apps/web dev
 ```
+
+Live2D SDK와 생성 자산은 라이선스 때문에 Git에 넣지 않는다. SDK ZIP을 다시 받았거나 생성 자산이 없으면 `live2d:setup`을 실행한다.
 
 Foundry가 없으면 `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
 
@@ -53,4 +56,4 @@ Foundry가 없으면 `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
 
 ## 실자금 전에 반드시
 
-`design.md`의 미해결 항목 6건. 특히 **컨트랙트 감사**, **가격 조작 저항(TWAP/오라클)**, **실행자 API 인증**. 현재 승인 API는 `127.0.0.1` 바인딩에만 기대고 있다.
+`design.md`의 미해결 항목을 확인한다. 특히 **컨트랙트 감사**, **가격 조작 저항(TWAP/오라클)**, **직접 dust 전송을 제외하는 managed balance**가 선행되어야 한다. 승인·거절은 API가 아니라 owner 지갑의 온체인 호출만 사용한다.
