@@ -1,0 +1,41 @@
+name: Base Contract
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: 금지 파일 추적 검사
+        shell: bash
+        run: |
+          forbidden="$(
+            git ls-files |
+              grep -E '(^|/)\.env($|\.)|\.(pem|key|p12|pfx|keystore)$|^apps/web/(public/live2d|\.live2d-sdk)/|(^|/)CubismSdkForWeb[^/]*\.zip$|\.(moc3|model3\.json|motion3\.json|physics3\.json|pose3\.json|exp3\.json|cdi3\.json)$' |
+              grep -vE '(^|/)\.env\.example$' || true
+          )"
+          if [[ -n "$forbidden" ]]; then
+            echo "$forbidden"
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm --filter @soon/web build
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: pnpm contracts:setup
+      - run: pnpm contracts:test
+      - run: pnpm e2e

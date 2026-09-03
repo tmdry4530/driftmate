@@ -1,8 +1,12 @@
 # DriftMate (`soon`)
 
-캐릭터의 성향을 결정론적 온체인 리밸런싱 전략으로 사용하는 비수탁형 에이전트 프로젝트다. 사용자는 격리 볼트의 owner로 남고, Keeper는 사용자가 서명한 자산·DEX·기간·금액 한도 안에서만 동작한다. LLM과 Live2D는 판단을 바꾸지 않고 설명과 표현만 담당한다.
+캐릭터의 성향을 결정론적 온체인 리밸런싱 전략으로 사용하는 비수탁형 에이전트 프로젝트다. 사용자가 격리 볼트의 owner로 남고 Keeper가 서명된 한도 안에서만 동작하는 구조를 목표로 한다. LLM과 Live2D는 판단을 바꾸지 않고 설명과 표현만 담당한다. 현재는 로컬 MVP이며, 태스크와 인수 조건을 마치기 전에는 실자금에 사용하지 않는다.
 
 현재 제품 계약과 구현 순서는 [기획서](./.claude/specs/character-agent-rebalancer/idea-proposal.md), [요구사항](./.claude/specs/character-agent-rebalancer/requirements.md), [설계](./.claude/specs/character-agent-rebalancer/design.md), [태스크](./.claude/specs/character-agent-rebalancer/tasks.md)에 있다.
+
+## 베이스와 확장 브랜치
+
+`main`은 특정 행사나 체인에 종속되지 않는 베이스다. 해커톤은 `hackathon/<name>`, 빌더 프로그램은 `program/<name>`, 체인 통합은 `chain/<name>` 브랜치에서 진행한다. 모든 확장 브랜치는 [베이스 계약](./AGENTS.md)과 `Base Contract` CI를 그대로 유지해야 한다.
 
 ## 빠른 시작
 

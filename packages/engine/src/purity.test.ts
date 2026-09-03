@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { ENGINE_PACKAGE } from './index.js'
 
 describe('엔진 패키지 제약', () => {
@@ -14,5 +14,15 @@ describe('엔진 패키지 제약', () => {
       readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
     ) as { dependencies?: Record<string, string> }
     expect(pkg.dependencies ?? {}).toEqual({})
+  })
+
+  it('외부 상태를 직접 읽지 않는다', () => {
+    const sourceDir = new URL('./', import.meta.url)
+    const forbidden = /\b(?:Date|fetch|WebSocket|EventSource|XMLHttpRequest)\b|\bMath\.random\b|\bperformance\.now\b|\bprocess\.(?:env|hrtime)\b|(?:from\s+|import\s*\()\s*['"]node:/
+
+    for (const file of readdirSync(sourceDir)) {
+      if (!file.endsWith('.ts') || file.includes('.test.')) continue
+      expect(readFileSync(new URL(file, sourceDir), 'utf8'), file).not.toMatch(forbidden)
+    }
   })
 })
