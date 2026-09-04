@@ -10,6 +10,11 @@ DriftMate는 이미 결정론적 판단, 제한 위임, owner 직접 승인, 온
 
 > Binance Agent OS connects the market. DriftMate proves when an agent is allowed to act.
 
+제출 링크:
+
+- 공개 저장소: <https://github.com/tmdry4530/driftmate/tree/hackathon/binance-agent-os>
+- 81초 데모: <https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4>
+
 ## Agent OS 연결
 
 1. 공식 Binance Skills Hub를 설치한다.

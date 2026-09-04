@@ -11,6 +11,7 @@
 이 브랜치는 Binance Agent OS를 **읽기 전용 시장 맥락**으로 연결한다. Agent OS 데이터는 설명에만 쓰며, 거래 판단·목표·금액·승인 Gate는 기존 결정론적 엔진과 AgentVault만 정한다.
 
 - 에이전트 스킬: [`skills/driftmate/SKILL.md`](./skills/driftmate/SKILL.md)
+- 81초 데모: [MP4 보기](https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4)
 - 설치·3분 데모·제출 체크리스트: [Track A 제출 가이드](./docs/binance-agent-os-track-a.md)
 - 설계 계약: [Track A 요구사항](./.claude/specs/binance-agent-os-track-a/requirements.md), [ADR-0007](./.claude/specs/adr/0007-binance-market-context-boundary.md)
 

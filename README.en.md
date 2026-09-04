@@ -8,6 +8,8 @@ DriftMate is a non-custodial character agent for verifiable portfolio rebalancin
 
 This branch is the **Binance Agent OS Mini Hackathon — Track A** submission. Binance Agent OS supplies read-only market context. It is deliberately not connected to the strategy, approval gate, or execution path.
 
+[Watch the 81-second demo](https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4)
+
 ## Why it matters
 
 - `AgentVault` enforces the executor, assets, DEX, expiry, automatic threshold, per-trade cap, and cumulative budget.
