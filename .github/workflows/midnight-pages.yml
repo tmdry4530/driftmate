@@ -1,6 +1,16 @@
 name: Midnight Hackathon Pages
 
 on:
+  push:
+    branches:
+      - hackathon/midnight-korea
+    paths:
+      - .github/workflows/midnight-pages.yml
+      - apps/web/**
+      - packages/midnight-contract/managed/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
   workflow_dispatch:
 
 permissions:

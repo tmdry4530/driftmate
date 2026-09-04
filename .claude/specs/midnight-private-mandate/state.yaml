@@ -73,7 +73,7 @@ convergence:
   blocking_findings: 0
 release:
   target: "https://tmdry4530.github.io/driftmate/"
-  artifact_sha256: "0ee7b4ac3f0fd1a2d56c1239d1bc34b59993ec4288119235db4f57eaba04a473"
+  artifact_sha256: "bf6bccc20892c43fc16aaabefd5f102b7801ee24d68f23f813220e0675a9aff6"
   preflight:
     pages_build: passed
     base_path: passed

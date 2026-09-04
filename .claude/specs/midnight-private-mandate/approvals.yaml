@@ -23,12 +23,17 @@ artifacts:
     approved_at: "2026-09-04T09:29:30Z"
   release:
     status: approved
-    version: 1
-    artifact_sha256: "0ee7b4ac3f0fd1a2d56c1239d1bc34b59993ec4288119235db4f57eaba04a473"
-    based_on_commit: "2edfd121fc4dc392d2b1b11cd5deed7118527114"
+    version: 2
+    artifact_sha256: "bf6bccc20892c43fc16aaabefd5f102b7801ee24d68f23f813220e0675a9aff6"
+    based_on_commit: "99eaeca7c2095124b769f8c604bf10a8b7ca650a"
     approved_by: user
-    approved_at: "2026-09-04T10:08:46Z"
+    approved_at: "2026-09-04T10:16:49Z"
 invalidation_history:
+  - artifact: release
+    invalidated_version: 1
+    artifact_sha256: "0ee7b4ac3f0fd1a2d56c1239d1bc34b59993ec4288119235db4f57eaba04a473"
+    invalidated_at: "2026-09-04T10:16:49Z"
+    reason: workflow_dispatch 파일이 기본 브랜치에 없으면 GitHub API가 404를 반환해 해커톤 브랜치 전용 push trigger로 변경함
   - artifact: tasks
     invalidated_version: 4
     artifact_sha256: "f1711d55ebc6d342a7d4a0f5d969cc5f6a77458b7d1e7a7e5827c2ff73dfbec1"
