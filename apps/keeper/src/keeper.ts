@@ -77,8 +77,8 @@ function remaining(limit: bigint, spent: bigint): bigint {
 }
 
 const PERSONAS: Readonly<Record<CharacterId, Persona>> = {
-  timid: { characterId: 'timid', voice: '조심스럽고 책임감 있는', tone: 'soft' },
-  easygoing: { characterId: 'easygoing', voice: '느긋하고 담담한', tone: 'calm' },
+  timid: { characterId: 'timid', voice: 'careful and responsible', tone: 'soft' },
+  easygoing: { characterId: 'easygoing', voice: 'relaxed and matter-of-fact', tone: 'calm' },
 }
 
 export class Keeper {

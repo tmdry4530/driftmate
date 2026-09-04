@@ -2,23 +2,21 @@ import type { Bps, CharacterId, TrackRecord } from '@soon/shared'
 import { bps } from '@soon/engine'
 
 /**
- * 화면에 보여줄 성과 (R7.6, R7.7, R11.7).
+ * Performance shown in the UI (R7.6, R7.7, R11.7).
  *
- * 대표값은 `totalFrictionBps` — 슬리피지와 운영비를 **둘 다** 포함한다.
- * `slippageOnlyBps`는 내역을 쪼개 보여줄 때만 쓰는 참고값이고,
- * 이것만 단독으로 크게 띄우는 화면은 만들지 않는다. 그러면 늘 실제보다
- * 좋아 보이는 숫자가 대표가 되고, 비용은 어딘가 작은 글씨로 밀린다.
+ * The headline value is `totalFrictionBps`, including both slippage and operating costs.
+ * `slippageOnlyBps` is a supporting breakdown and must not become the headline metric.
  */
 export type Performance = Readonly<{
   tradeCount: number
   totalVolume: bigint
   slippageCost: bigint
   operatingCost: bigint
-  /** 대표값. 거래 규모 대비 총 마찰. 낮을수록 잘한 것이다. */
+  /** Headline metric: total friction relative to volume. Lower is better. */
   totalFrictionBps: Bps | null
-  /** 내역용. 운영비를 뺀 값이라 단독으로 쓰면 실제보다 좋아 보인다. */
+  /** Supporting breakdown excluding operating costs. */
   slippageOnlyBps: Bps | null
-  /** 운영비가 대표값을 얼마나 끌어올렸는지 (R11.7). */
+  /** Operating-cost contribution to the headline metric (R11.7). */
   operatingImpactBps: Bps | null
 }>
 
@@ -45,7 +43,7 @@ export function computePerformance(records: readonly TrackRecord[], characterId:
     operating += costByDecision.get(`${r.delegationId}:${r.decisionId}`) ?? 0n
   }
 
-  // 실행에 붙지 않은 운영비(판단만 하고 거래하지 않은 경우)도 비용이다.
+  // Operating costs without an execution are still costs.
   for (const [key, amount] of costByDecision) {
     const attached = selected.some(
       (r) => r.kind === 'executed' && `${r.delegationId}:${r.decisionId}` === key,

@@ -27,7 +27,7 @@ describe('LLM 격리 — 설명이 실행을 건드릴 수 없다 (R8.2)', () =>
   })
 
   it('Narration을 실행 인자로 넘기면 컴파일이 깨진다', () => {
-    const narration: Narration = { text: '되돌렸어요.', fallback: false }
+    const narration: Narration = { text: 'Rebalanced.', fallback: false }
 
     // @ts-expect-error Narration은 실행 경로에 들어갈 수 없다.
     const bad: ExecuteArgs = narration

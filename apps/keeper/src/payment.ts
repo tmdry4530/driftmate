@@ -26,7 +26,7 @@ export interface PaymentAdapter {
 
 export class BudgetExhaustedError extends Error {
   constructor() {
-    super('운영비 예산이 소진되었다')
+    super('The operating-cost budget is exhausted.')
     this.name = 'BudgetExhaustedError'
   }
 }

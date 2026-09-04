@@ -3,11 +3,10 @@ import type { CharacterId, Narration } from '@soon/shared'
 import { type AgentState, buildLossReport, expressionFor } from '../characterState.js'
 
 /**
- * 캐릭터 무대 (R9.1, R9.2, R9.4, R9.5).
+ * Character stage (R9.1, R9.2, R9.4, R9.5).
  *
- * Live2D 모델을 불러오되, 없거나 실패하면 정적 표현으로 대체하고 나머지 기능은
- * 그대로 돌아간다. SDK는 라이선스 동의가 필요해 저장소에 넣지 않으므로,
- * SDK 생성물은 라이선스 때문에 Git에서 제외하고 setup 명령으로 복원한다.
+ * Load a Live2D model when available; otherwise keep every other feature working
+ * with a static fallback. Licensed SDK artifacts stay outside Git and are restored by setup.
  */
 export interface Live2DLoader {
   load(canvas: HTMLCanvasElement, characterId: CharacterId, signal: AbortSignal): Promise<Live2DController>
@@ -32,7 +31,7 @@ const FACE: Record<string, { eyes: string; mouth: string; tint: string }> = {
 function Face({ expression }: { expression: string }) {
   const f = FACE[expression] ?? FACE.idle!
   return (
-    <svg viewBox="0 0 104 104" width="132" height="132" role="img" aria-label={`캐릭터 표정: ${expression}`}>
+    <svg viewBox="0 0 104 104" width="132" height="132" role="img" aria-label={`Character expression: ${expression}`}>
       <circle cx="52" cy="52" r="40" fill={f.tint} opacity="0.16" />
       <circle cx="52" cy="52" r="34" fill="none" stroke={f.tint} strokeWidth="2.5" />
       {f.eyes === 'closed' ? (
@@ -108,7 +107,7 @@ export function CharacterStage({
         setLive2dReady(true)
       })
       .catch(() => {
-        // 모델을 못 불러와도 나머지는 그대로 쓴다 (R9.5).
+        // Keep the rest of the product available when the model cannot load (R9.5).
         if (!cancelled) {
           controllerRef.current?.destroy()
           controllerRef.current = undefined
@@ -134,7 +133,7 @@ export function CharacterStage({
           width={240}
           height={240}
           role="img"
-          aria-label={`Live2D 캐릭터: ${characterName}`}
+          aria-label={`Live2D character: ${characterName}`}
           aria-hidden={!live2dReady}
           style={{ visibility: live2dReady ? 'visible' : 'hidden' }}
         />
@@ -142,7 +141,7 @@ export function CharacterStage({
       </div>
       <div style={{ fontWeight: 600 }}>{characterName}</div>
 
-      {/* 손실은 수치를 먼저, 캐릭터 반응을 나중에 (R9.4). */}
+      {/* Show loss numbers before the character reaction (R9.4). */}
       {loss && (
         <div style={{ textAlign: 'center' }}>
           <div className="loss-head">{loss.headline}</div>
@@ -153,7 +152,7 @@ export function CharacterStage({
       {narration && (
         <div className="speech">
           {narration.text}
-          {narration.fallback && <span className="fallback">설명을 만들지 못해 기본 문장으로 보여드려요.</span>}
+          {narration.fallback && <span className="fallback">Using the deterministic fallback explanation.</span>}
         </div>
       )}
     </div>

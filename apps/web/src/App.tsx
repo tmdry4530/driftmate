@@ -102,7 +102,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
   const narration = status?.narration ?? fallbackNarration
   const pending = status?.pending ? [status.pending] : []
 
-  /** receipt 확정과 선택 검증이 끝난 뒤 체인·Keeper 상태를 함께 갱신한다. */
+  /** Refresh chain and keeper state only after receipt confirmation and optional verification. */
   async function send(
     fn: () => Promise<Hex>,
     what: string,
@@ -110,22 +110,22 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
   ): Promise<boolean> {
     setTxError(undefined)
     try {
-      if (!client) throw new Error('체인 연결이 준비되지 않았어요')
+      if (!client) throw new Error('The chain connection is not ready.')
       const hash = await fn()
       const receipt = await client.waitForTransactionReceipt({ hash })
-      if (receipt.status !== 'success') throw new Error('트랜잭션이 되돌려졌어요')
+      if (receipt.status !== 'success') throw new Error('The transaction was reverted.')
       await afterReceipt?.(receipt.blockNumber)
       await Promise.all([refresh(), keeper.refresh()])
       return true
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause)
-      setTxError(`${what} 실패: ${message.split('\n')[0]}`)
+      setTxError(`${what} failed: ${message.split('\n')[0]}`)
       return false
     }
   }
 
   async function submitDelegation(draft: DelegationDraft) {
-    if (!client) throw new Error('체인 연결이 준비되지 않았어요')
+    if (!client) throw new Error('The chain connection is not ready.')
     const now = (await client.getBlock()).timestamp
     const delegation = {
       executor: config.executor,
@@ -152,7 +152,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
         functionName: 'setDelegation',
         args: [delegation],
       }),
-      '위임 설정',
+      'Delegation setup',
       async (blockNumber) => {
         const stored = await client.readContract({
           address: config.vault,
@@ -160,7 +160,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
           functionName: 'delegation',
           blockNumber,
         })
-        if (!sameDelegation(delegation, stored)) throw new Error('서명한 위임과 온체인 저장값이 달라요')
+        if (!sameDelegation(delegation, stored)) throw new Error('The signed delegation does not match the on-chain value.')
       },
     )
   }
@@ -178,7 +178,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
           { dex: pending.dex, ...pending.trade },
         ],
       }),
-      '승인 실행',
+      'Approved execution',
     )
     setFailedDecisionId(ok ? undefined : pending.decisionId)
   }
@@ -191,7 +191,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
         functionName: 'reject',
         args: [BigInt(pending.delegationId), BigInt(pending.stateNonce), pending.decisionId],
       }),
-      '승인 거절',
+      'Approval rejection',
     )
   }
 
@@ -203,7 +203,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
         functionName: 'expire',
         args: [BigInt(pending.delegationId), BigInt(pending.stateNonce), pending.decisionId],
       }),
-      '승인 만료',
+      'Approval expiry',
     )
   }
 
@@ -220,7 +220,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
           NOT_EXECUTED_REASON.execution_failed,
         ],
       }),
-      '실패 종결',
+      'Failure finalization',
     )
   }
 
@@ -233,7 +233,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
         functionName: 'signalDisappointment',
         args: [BigInt(lossReport.delegationId), lossReport.reportId],
       }),
-      '실망 표시',
+      'Disappointment signal',
     )
   }
 
@@ -245,7 +245,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
         functionName: 'revoke',
         args: [],
       }),
-      '위임 철회',
+      'Delegation revocation',
     )
   }
 
@@ -257,7 +257,7 @@ export function App({ config, keeperUrl }: { config: AppConfig; keeperUrl: strin
       {txError && <div className="notice" style={{ marginBottom: 16 }}>{txError}</div>}
       {keeperUrl && !keeper.online && (
         <div className="notice" style={{ marginBottom: 16 }}>
-          실행자에 연결되지 않았어요. 마지막 온체인 기록만 표시하며 자동 판단 상태는 추정하지 않아요.
+          The keeper is offline. Only confirmed on-chain records are shown; automatic decision state is not inferred.
         </div>
       )}
       {status?.lastError && <div className="notice" style={{ marginBottom: 16 }}>{status.lastError}</div>}

@@ -111,8 +111,8 @@ export function computeTrust(
             delta: int(delta),
             reason:
               delta > 0
-                ? `싸게 옮겼다 (마찰 ${ratioBps}bp)`
-                : `비싸게 옮겼다 (마찰 ${ratioBps}bp)`,
+                ? `Efficient execution (${ratioBps}bp friction)`
+                : `Wasteful execution (${ratioBps}bp friction)`,
           })
         }
         break
@@ -131,7 +131,7 @@ export function computeTrust(
             decisionId: r.decisionId,
             blockNumber: r.blockNumber,
             delta: int(delta),
-            reason: r.reason === 'rejected' ? '사용자가 거절한 제안' : '예산을 소진시킴',
+            reason: r.reason === 'rejected' ? 'Proposal rejected by owner' : 'Budget exhausted',
           })
         }
         break
@@ -142,7 +142,7 @@ export function computeTrust(
           delegationId: r.delegationId,
           blockNumber: r.blockNumber,
           delta: int(WEIGHTS.disappointed),
-          reason: '사용자가 실망을 표시함',
+          reason: 'Owner signaled disappointment',
         })
         break
       }

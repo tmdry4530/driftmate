@@ -1,81 +1,85 @@
-# DriftMate (`soon`)
+# DriftMate
 
-[English](./README.en.md) · 한국어
+**Binance Agent OS connects the market. DriftMate proves when an agent is allowed to act.**
 
-캐릭터의 성향을 결정론적 온체인 리밸런싱 전략으로 사용하는 비수탁형 에이전트 프로젝트다. 사용자가 격리 볼트의 owner로 남고 Keeper가 서명된 한도 안에서만 동작한다. LLM과 Live2D는 판단을 바꾸지 않고 설명과 표현만 담당한다. 현재는 검증된 로컬 MVP이며 외부 보안 감사를 받지 않았으므로 실자금에는 사용하지 않는다.
+DriftMate is a non-custodial character agent for verifiable portfolio rebalancing. The owner keeps control of an isolated vault, while a keeper can execute only within signed on-chain limits. The strategy engine is deterministic; the LLM and Live2D character explain outcomes without changing decisions or transaction parameters.
 
-현재 제품 계약과 구현 순서는 [기획서](./.claude/specs/character-agent-rebalancer/idea-proposal.md), [요구사항](./.claude/specs/character-agent-rebalancer/requirements.md), [설계](./.claude/specs/character-agent-rebalancer/design.md), [태스크](./.claude/specs/character-agent-rebalancer/tasks.md)에 있다.
+This branch is the **Binance Agent OS Mini Hackathon — Track A** submission. Binance Agent OS supplies read-only market context. It is deliberately not connected to the strategy, approval gate, or execution path.
 
-## Binance Agent OS Track A
+[Watch the 71-second demo](https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4)
 
-이 브랜치는 Binance Agent OS를 **읽기 전용 시장 맥락**으로 연결한다. Agent OS 데이터는 설명에만 쓰며, 거래 판단·목표·금액·승인 Gate는 기존 결정론적 엔진과 AgentVault만 정한다.
+## Why it matters
 
-- 에이전트 스킬: [`skills/driftmate/SKILL.md`](./skills/driftmate/SKILL.md)
-- 81초 데모: [MP4 보기](https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4)
-- 설치·3분 데모·제출 체크리스트: [Track A 제출 가이드](./docs/binance-agent-os-track-a.md)
-- 설계 계약: [Track A 요구사항](./.claude/specs/binance-agent-os-track-a/requirements.md), [ADR-0007](./.claude/specs/adr/0007-binance-market-context-boundary.md)
+- `AgentVault` enforces the executor, assets, DEX, expiry, automatic threshold, per-trade cap, and cumulative budget.
+- Orders above the automatic threshold stop for a direct owner-wallet decision.
+- Decisions, executions, costs, and session loss are recorded as verifiable evidence.
+- Trust only narrows automation; it never changes direction, target weights, or trade size.
+- Binance access is limited to **Market data**. The DriftMate skill forbids trading, transfers, wallet writes, and contract writes.
 
-## 베이스와 확장 브랜치
+```mermaid
+flowchart LR
+  O[Owner wallet] -->|signed limits| V[AgentVault]
+  K[Keeper] --> E[Deterministic engine]
+  E -->|bounded order| V
+  V -->|events and records| D[DriftMate skill]
+  B[Binance Agent OS\nMarket data only] -. context .-> D
+  D -->|explanation| O
+```
 
-`main`은 특정 행사나 체인에 종속되지 않는 베이스다. 해커톤은 `hackathon/<name>`, 빌더 프로그램은 `program/<name>`, 체인 통합은 `chain/<name>` 브랜치에서 진행한다. 모든 확장 브랜치는 [베이스 계약](./AGENTS.md)과 `Base Contract` CI를 그대로 유지해야 한다.
+## Run the verified local demo
 
-## 빠른 시작
-
-필수 환경은 Git, Node.js 24.12 이상과 Corepack이다.
+Requirements: Git, Node.js 24.12+, Corepack, and Foundry.
 
 ```bash
 git clone --branch hackathon/binance-agent-os https://github.com/tmdry4530/driftmate.git
 cd driftmate
 corepack enable
 pnpm install --frozen-lockfile
+pnpm contracts:setup
 pnpm test
 pnpm typecheck
 pnpm --filter @soon/web build
-```
-
-웹만 실행할 때는 환경 예시를 복사하고 필요한 주소를 채운다.
-
-```bash
-cp apps/web/.env.example apps/web/.env
-pnpm -C apps/web dev
-```
-
-## 컨트랙트와 통합 환경
-
-[Foundry](https://book.getfoundry.sh/getting-started/installation)가 설치된 환경에서 의존성을 복원한다.
-
-```bash
-pnpm contracts:setup
 pnpm contracts:test
 pnpm e2e
 ```
 
-E2E가 만든 Anvil과 Keeper를 유지해 웹에서 확인하려면 두 터미널에서 각각 실행한다.
+Keep the local Anvil and keeper running, then start the web app in a second terminal:
 
 ```bash
 KEEP=1 pnpm e2e
+```
+
+```bash
 pnpm -C apps/web dev
 ```
 
-## Live2D
+## Use it with Agent OS
 
-Live2D 없이도 정적 SVG 폴백으로 개발할 수 있다. Haru·Ren 모델을 렌더링하려면 시스템 `unzip`과 Cubism SDK for Web ZIP이 필요하다. ZIP을 공식 배포처에서 받은 뒤 로컬 설치 명령을 실행한다.
+Install the official Binance market-data skill and DriftMate's agent skill:
 
 ```bash
-pnpm live2d:setup /path/to/CubismSdkForWeb-5-r.5.zip
+npx skills add https://github.com/binance/binance-skills-hub --skill query-token-info -y
+npx skills add . --skill driftmate -y
 ```
 
-SDK, 샘플 모델과 생성된 runtime은 라이선스 때문에 Git에 포함하지 않는다.
+For MCP, follow the [official Binance connection guide](https://developers.binance.com/en/docs/agent-native/mcp-server/agentic) and authorize **Market data only**.
 
-## 커스터마이징 지점
+Example prompt:
 
-| 목적 | 위치 |
-|---|---|
-| 캐릭터 전략 파라미터 | `packages/engine/src/characters.ts` |
-| 결정 규칙과 승인 Gate | `packages/engine/src/decide.ts`, `packages/engine/src/gate.ts` |
-| 볼트 권한·한도 | `packages/contracts/src/AgentVault.sol` |
-| 자동 실행 파이프라인 | `apps/keeper/src/keeper.ts` |
-| 캐릭터 UI와 상태 표현 | `apps/web/src/components/CharacterStage.tsx`, `apps/web/src/characterState.ts` |
-| 체인·컨트랙트 주소 | `apps/web/.env.example` |
+```text
+Use DriftMate to review the current session at http://127.0.0.1:8945/status.
+Add Binance Agent OS market context for BNB on BSC, but keep it separate because
+the local E2E asset is a mock token. Do not trade, transfer, or approve anything.
+```
 
-새 기능은 `.claude/specs/<feature-name>/`에서 requirements → design/ADR → tasks 순서로 합의한 뒤 구현한다. 메인넷 실자금 사용 전에는 설계 문서의 보안 미해결 항목을 먼저 닫아야 한다.
+The install guide, three-minute script, and submission checklist are in [docs/binance-agent-os-track-a.md](./docs/binance-agent-os-track-a.md). The exact agent contract is in [skills/driftmate/SKILL.md](./skills/driftmate/SKILL.md).
+
+## Verification status
+
+- 138 TypeScript tests
+- TypeScript project typecheck
+- Production web build
+- 66 Solidity tests
+- 34 end-to-end Anvil checks
+
+This is a verified local MVP, not a mainnet deployment. It has not received an external security audit; do not use it with real funds.

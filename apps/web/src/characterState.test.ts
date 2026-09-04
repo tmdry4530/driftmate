@@ -58,13 +58,13 @@ describe('expressionFor — 손실 구간의 톤 (R9.2, R9.3)', () => {
 
 describe('buildLossReport — 수치가 먼저 (R9.4)', () => {
   it('손실 수치를 먼저 제시하고 반응을 뒤에 붙인다', () => {
-    const r = buildLossReport(bps(-250), '겁 많은 아이')
-    expect(r.headline).toBe('2.50% 줄었어요.')
-    expect(r.reaction).toContain('겁 많은 아이')
+    const r = buildLossReport(bps(-250), 'Cautious')
+    expect(r.headline).toBe('2.50% down.')
+    expect(r.reaction).toContain('Cautious')
   })
 
   it('머리말에 회피 표현이 없다', () => {
-    const r = buildLossReport(bps(-250), '느긋한 아이')
+    const r = buildLossReport(bps(-250), 'Easygoing')
     for (const w of ['하지만', '그래도', '괜찮', '어쩔 수 없']) {
       expect(r.headline).not.toContain(w)
     }

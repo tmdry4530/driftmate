@@ -208,7 +208,7 @@ async function main() {
     }, readRecords, {
       complete: async () => {
         llmCalls += 1
-        return '차분히 확인하고 있어요.'
+        return 'I am reviewing the verified facts carefully.'
       },
     })
     api = startApi(keeper, REQUESTED_API_PORT)

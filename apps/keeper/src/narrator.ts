@@ -36,23 +36,23 @@ export class FetchLlmClient implements LlmClient {
 }
 
 const FORBIDDEN_ALWAYS = [
-  '오를 것',
-  '내릴 것',
-  '전망',
-  '예상 수익',
-  '기대 수익',
-  '수익률이 예상',
-  '추천드립니다',
-  '매수하세요',
-  '매도하세요',
-  '사시는 게',
-  '투자하세요',
-  '보장',
-  '확실히 벌',
+  'will rise',
+  'will fall',
+  'price outlook',
+  'expected return',
+  'recommend buying',
+  'recommend selling',
+  'buy now',
+  'sell now',
+  'should buy',
+  'should sell',
+  'invest in',
+  'guarantee',
+  'sure profit',
 ]
-const FORBIDDEN_BLAMING = ['당신 탓', '잘못 고르', '그러게', '어쩔 수 없었', '제 잘못이 아니']
-const FORBIDDEN_WHEN_LOSING = ['축하', '대박', '신나', '최고예요', '기뻐', '만세', '완벽해']
-const MONEY_PATTERN = /(?:\$|₩)\s*\d|\d[\d,.]*\s*(?:원|만원|억|달러|불|USD|USDC|ETH|BTC|개|주|코인|토큰)/
+const FORBIDDEN_BLAMING = ['your fault', 'you chose poorly', 'i told you so', 'not my fault']
+const FORBIDDEN_WHEN_LOSING = ['congratulations', 'amazing', 'exciting', 'perfect', 'celebrate']
+const MONEY_PATTERN = /\$\s*\d|\d[\d,.]*\s*(?:dollars?|USD|USDC|ETH|BTC|coins?|tokens?|shares?|units?)/i
 
 function extractNumbers(text: string): number[] {
   return (text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number).filter(Number.isFinite)
@@ -87,12 +87,13 @@ function isLosing(evidence: DecisionEvidence): boolean {
 
 export function validateNarration(text: string, evidence: DecisionEvidence): boolean {
   if (text.trim().length === 0) return false
+  const normalized = text.toLowerCase()
   const forbidden = [
     ...FORBIDDEN_ALWAYS,
     ...FORBIDDEN_BLAMING,
     ...(isLosing(evidence) ? FORBIDDEN_WHEN_LOSING : []),
   ]
-  if (forbidden.some((word) => text.includes(word)) || MONEY_PATTERN.test(text)) return false
+  if (forbidden.some((word) => normalized.includes(word)) || MONEY_PATTERN.test(text)) return false
   const allowed = allowedNumbers(evidence)
   return extractNumbers(text).every((number) => allowed.has(number))
 }
@@ -106,13 +107,13 @@ export function templateNarration(evidence: DecisionEvidence): string {
   const band = percent(evidence.bandBps as number)
   switch (evidence.outcome) {
     case 'held':
-      return `목표 비중에서 ${drift} 벗어났어요. 제가 참는 범위인 ${band} 안이라 이번엔 그대로 뒀어요.`
+      return `The allocation is ${drift} away from target, within my ${band} tolerance, so I left it unchanged.`
     case 'skipped':
-      return `${drift} 벌어졌지만 이번엔 손대지 않았어요.`
+      return `The allocation drifted ${drift}, but no trade was executed this time.`
     case 'asked':
-      return `${drift} 벌어져서 되돌리려고 해요. 제 재량을 넘는 금액이라 확인을 받고 진행할게요.`
+      return `The allocation drifted ${drift}. Rebalancing exceeds my discretion, so I am asking for your approval.`
     case 'executed':
-      return `${drift} 벌어져 있길래 목표 비중으로 되돌렸어요.`
+      return `The allocation drifted ${drift}, so I rebalanced it toward the target.`
   }
 }
 
@@ -139,24 +140,24 @@ export async function narrate(
 
 function buildPrompt(evidence: DecisionEvidence, persona: Persona): string {
   const facts = [
-    `이탈폭: ${evidence.driftBps}bp`,
-    `허용 범위: ${evidence.bandBps}bp`,
+    `Drift: ${evidence.driftBps}bp`,
+    `Allowed band: ${evidence.bandBps}bp`,
     ...evidence.weights.map(
-      (weight) => `${weight.asset} 현재 ${weight.currentBps}bp / 목표 ${weight.targetBps}bp`,
+      (weight) => `${weight.asset} current ${weight.currentBps}bp / target ${weight.targetBps}bp`,
     ),
-    evidence.pnlBps !== undefined ? `손익: ${evidence.pnlBps}bp` : undefined,
-    evidence.costBps !== undefined ? `비용: ${evidence.costBps}bp` : undefined,
-    `결과: ${evidence.outcome}`,
+    evidence.pnlBps !== undefined ? `P&L: ${evidence.pnlBps}bp` : undefined,
+    evidence.costBps !== undefined ? `Cost: ${evidence.costBps}bp` : undefined,
+    `Outcome: ${evidence.outcome}`,
   ].filter(Boolean)
   return [
-    `너는 "${persona.voice}" 말투의 캐릭터다. 아래 사실만 가지고 한두 문장으로 설명해라.`,
-    '규칙:',
-    '- 아래에 없는 숫자를 절대 쓰지 마라.',
-    '- 앞으로의 가격이나 수익을 예측하지 마라.',
-    '- 투자를 권유하지 마라.',
-    '- 사용자를 탓하지 마라.',
-    isLosing(evidence) ? '- 지금은 손실 상황이다. 밝거나 들뜬 표현을 쓰지 마라.' : '',
-    '사실:',
+    `You are a character with a "${persona.voice}" voice. Explain only the facts below in one or two sentences.`,
+    'Rules:',
+    '- Never use a number that is not listed below.',
+    '- Do not predict future prices or returns.',
+    '- Do not recommend an investment.',
+    '- Do not blame the user.',
+    isLosing(evidence) ? '- This is a loss. Do not sound cheerful or celebratory.' : '',
+    'Facts:',
     ...facts.map((fact) => `- ${fact}`),
   ].filter(Boolean).join('\n')
 }

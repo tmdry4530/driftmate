@@ -1,14 +1,12 @@
 # DriftMate
 
-English · [한국어](./README.md)
-
 **Binance Agent OS connects the market. DriftMate proves when an agent is allowed to act.**
 
 DriftMate is a non-custodial character agent for verifiable portfolio rebalancing. The owner keeps control of an isolated vault, while a keeper can execute only within signed on-chain limits. The strategy engine is deterministic; the LLM and Live2D character explain outcomes without changing decisions or transaction parameters.
 
 This branch is the **Binance Agent OS Mini Hackathon — Track A** submission. Binance Agent OS supplies read-only market context. It is deliberately not connected to the strategy, approval gate, or execution path.
 
-[Watch the 81-second demo](https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4)
+[Watch the 71-second demo](https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4)
 
 ## Why it matters
 

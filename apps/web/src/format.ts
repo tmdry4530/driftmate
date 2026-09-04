@@ -1,6 +1,6 @@
 import type { Bps } from '@soon/shared'
 
-/** quote 자산(6 decimals)을 사람이 읽는 금액으로. */
+/** Format a six-decimal quote asset for display. */
 export function formatQuote(v: bigint): string {
   const whole = v / 1_000_000n
   const frac = (v % 1_000_000n) / 10_000n
@@ -17,6 +17,6 @@ export function shortAddress(a: string): string {
 
 export function formatBlockAge(current: bigint, at: bigint): string {
   const diff = current - at
-  if (diff <= 0n) return '방금'
-  return `${diff}블록 전`
+  if (diff <= 0n) return 'Just now'
+  return `${diff} blocks ago`
 }

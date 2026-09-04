@@ -58,7 +58,7 @@ function decodeCharacter(value: Bytes32): CharacterId | undefined {
   return id === 'timid' || id === 'easygoing' ? id : undefined
 }
 
-/** 볼트 상태와 트랙레코드를 읽는다. 원천은 언제나 체인이다 (R7.2). */
+/** Read vault state and track records. The chain is always the source of truth (R7.2). */
 export function useVault(config: AppConfig, pollMs = 6_000) {
   const client = usePublicClient()
   const [state, setState] = useState<VaultState>(EMPTY)
@@ -102,7 +102,7 @@ export function useVault(config: AppConfig, pollMs = 6_000) {
       })
       setError(undefined)
     } catch (e) {
-      setError(e instanceof Error ? e.message : '볼트를 읽지 못했어요')
+      setError(e instanceof Error ? e.message : 'Could not read the vault.')
     }
   }, [client, config.vault])
 

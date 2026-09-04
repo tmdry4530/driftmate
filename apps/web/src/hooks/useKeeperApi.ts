@@ -11,28 +11,28 @@ import type {
 } from '@soon/shared'
 
 function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('잘못된 status 응답')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid status response')
   return value as Record<string, unknown>
 }
 
 function decimal(value: unknown): string {
-  if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new Error('잘못된 정수')
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new Error('Invalid unsigned integer')
   return value
 }
 
 function signedDecimal(value: unknown): string {
-  if (typeof value !== 'string' || !/^-?\d+$/.test(value)) throw new Error('잘못된 부호 정수')
+  if (typeof value !== 'string' || !/^-?\d+$/.test(value)) throw new Error('Invalid signed integer')
   return value
 }
 
 function integer(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isInteger(value)) throw new Error('잘못된 정수')
+  if (typeof value !== 'number' || !Number.isInteger(value)) throw new Error('Invalid integer')
   return value
 }
 
 function hex(value: unknown, bytes: number): Bytes32 {
   if (typeof value !== 'string' || !new RegExp('^0x[0-9a-fA-F]{' + bytes * 2 + '}$').test(value)) {
-    throw new Error('잘못된 hex 값')
+    throw new Error('Invalid hex value')
   }
   return value as Bytes32
 }
@@ -43,9 +43,9 @@ function address(value: unknown): Address {
 
 function reviveEvidence(value: unknown): DecisionEvidence {
   const evidence = object(value)
-  if (!Array.isArray(evidence.weights)) throw new Error('잘못된 판단 근거')
+  if (!Array.isArray(evidence.weights)) throw new Error('Invalid decision evidence')
   if (!['executed', 'held', 'asked', 'skipped'].includes(String(evidence.outcome))) {
-    throw new Error('잘못된 판단 결과')
+    throw new Error('Invalid decision outcome')
   }
   return {
     weights: evidence.weights.map((value) => {
@@ -67,7 +67,7 @@ function reviveEvidence(value: unknown): DecisionEvidence {
 function revivePending(value: unknown): PendingView {
   const p = object(value)
   const trade = object(p.trade)
-  if (p.capSource !== 'user' && p.capSource !== 'trust') throw new Error('잘못된 한도 근거')
+  if (p.capSource !== 'user' && p.capSource !== 'trust') throw new Error('Invalid cap source')
   return {
     delegationId: decimal(p.delegationId),
     configHash: hex(p.configHash, 32),
@@ -91,7 +91,7 @@ function revivePending(value: unknown): PendingView {
 function reviveLossReport(value: unknown): LossReport {
   const report = object(value)
   if (report.status !== 'loss' && report.status !== 'not_loss' && report.status !== 'cashflow_unknown') {
-    throw new Error('잘못된 손익 상태')
+    throw new Error('Invalid P&L status')
   }
   return {
     delegationId: decimal(report.delegationId),
@@ -112,7 +112,7 @@ function reviveLossReport(value: unknown): LossReport {
 function reviveNarration(value: unknown): NarrationView {
   const narration = object(value)
   if (typeof narration.text !== 'string' || typeof narration.fallback !== 'boolean') {
-    throw new Error('잘못된 설명')
+    throw new Error('Invalid narration')
   }
   return {
     delegationId: decimal(narration.delegationId),
@@ -123,20 +123,20 @@ function reviveNarration(value: unknown): NarrationView {
   }
 }
 
-/** Keeper JSON을 owner 트랜잭션에 쓰기 전에 엄격히 복원한다. */
+/** Strictly revive keeper JSON before using it in an owner transaction. */
 export function parseKeeperStatus(value: unknown): KeeperStatus {
   const raw = object(value)
   if (raw.phase !== 'idle' && raw.phase !== 'deciding' && raw.phase !== 'awaiting_approval') {
-    throw new Error('잘못된 Keeper phase')
+    throw new Error('Invalid keeper phase')
   }
   const delegationId = raw.delegationId === null ? null : decimal(raw.delegationId)
   const configHash = raw.configHash === null ? null : hex(raw.configHash, 32)
   const lastDecision = raw.lastDecision === undefined ? undefined : object(raw.lastDecision)
   const snapshot = raw.snapshot === undefined ? undefined : object(raw.snapshot)
   if (lastDecision && !['executed', 'held', 'skipped'].includes(String(lastDecision.outcome))) {
-    throw new Error('잘못된 마지막 판단')
+    throw new Error('Invalid last decision')
   }
-  if (raw.lastError !== undefined && typeof raw.lastError !== 'string') throw new Error('잘못된 오류 메시지')
+  if (raw.lastError !== undefined && typeof raw.lastError !== 'string') throw new Error('Invalid error message')
   return {
     phase: raw.phase,
     delegationId,

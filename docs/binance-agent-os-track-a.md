@@ -1,45 +1,45 @@
-# Binance Agent OS Mini Hackathon — Track A 제출 가이드
+# Binance Agent OS Mini Hackathon — Track A Submission Guide
 
-## 선택한 트랙
+## Selected track
 
-**Track A: Agent OS로 AI 에이전트 빌드**로 제출한다.
+Submit to **Track A: Build AI Agents with Agent OS**.
 
-DriftMate는 이미 결정론적 판단, 제한 위임, owner 직접 승인, 온체인 트랙레코드, 캐릭터 설명을 가진 완성된 에이전트 흐름이다. Track B의 실거래량 경쟁을 위해 별도 Binance 실행 경로를 만드는 것보다, Track A에서 Agent OS 시장 연결과 DriftMate의 검증 가능한 권한 경계를 결합하는 편이 제품 정체성과 안전 계약에 맞는다.
+DriftMate already provides a complete agent flow with deterministic decisions, bounded delegation, direct owner approval, an on-chain track record, and character-based explanations. Combining Binance Agent OS market context with DriftMate's verifiable permission boundary fits the product and its safety contract better than adding a separate Binance execution path for Track B trading volume.
 
-제출 메시지:
+Submission message:
 
 > Binance Agent OS connects the market. DriftMate proves when an agent is allowed to act.
 
-제출 링크:
+Submission links:
 
-- 공개 저장소: <https://github.com/tmdry4530/driftmate/tree/hackathon/binance-agent-os>
-- 81초 데모: <https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4>
+- Public repository: <https://github.com/tmdry4530/driftmate/tree/hackathon/binance-agent-os>
+- 71-second demo: <https://github.com/tmdry4530/driftmate/releases/download/hackathon-binance-agent-os-v1/driftmate-binance-agent-os-track-a.mp4>
 
-## Agent OS 연결
+## Connect Agent OS
 
-1. 공식 Binance Skills Hub를 설치한다.
+1. Install the official Binance Skills Hub market-data skill.
 
    ```bash
    npx skills add https://github.com/binance/binance-skills-hub --skill query-token-info -y
    ```
 
-2. 이 저장소의 `driftmate` 스킬을 프로젝트 에이전트에 설치한다.
+2. Install this repository's `driftmate` skill in the project agent.
 
    ```bash
    npx skills add . --skill driftmate -y
    ```
 
-3. [Binance MCP 공식 연결 안내](https://developers.binance.com/en/docs/agent-native/mcp-server/agentic)에 따라 지원 클라이언트에서 연결하고 **Market data** 권한만 허용한다. endpoint나 인증 정보를 채팅에 붙여 넣지 않는다.
+3. Follow the [official Binance MCP connection guide](https://developers.binance.com/en/docs/agent-native/mcp-server/agentic) in a supported client and authorize **Market data only**. Never paste endpoints or credentials into chat.
 
-`query-token-info`만으로 데모할 때는 MCP OAuth 없이 공식 Skills Hub의 공개 시장 데이터 경로를 사용할 수 있다. 어느 쪽이든 DriftMate 주문·승인에는 연결되지 않는다.
+The `query-token-info` skill can use the official Skills Hub public market-data path without MCP OAuth. Neither connection is part of DriftMate's order or approval path.
 
-## 로컬 데모 실행
+## Run the local demo
 
-필수 의존성을 설치하고 전체 검증을 먼저 실행한다.
+Install dependencies and run the complete verification suite first.
 
 ```bash
 pnpm install --frozen-lockfile
-# 새 clone에서만 한 번
+# Run once in a fresh clone
 pnpm contracts:setup
 pnpm test
 pnpm typecheck
@@ -48,7 +48,7 @@ pnpm --filter @soon/web build
 pnpm e2e
 ```
 
-데모 환경은 두 터미널에서 실행한다. 첫 명령은 Anvil·Keeper를 유지하고 `apps/web/.env`를 자동 생성한다.
+Run the demo in two terminals. The first command keeps Anvil and the keeper running and generates `apps/web/.env`.
 
 ```bash
 KEEP=1 pnpm e2e
@@ -58,7 +58,7 @@ KEEP=1 pnpm e2e
 pnpm -C apps/web dev
 ```
 
-로컬 에이전트 프롬프트 예시:
+Example local-agent prompt:
 
 ```text
 Use DriftMate to review the current session at http://127.0.0.1:8945/status.
@@ -66,25 +66,25 @@ Add Binance Agent OS market context for BNB on BSC, but keep it separate because
 the local E2E asset is a mock token. Do not trade, transfer, or approve anything.
 ```
 
-## 3분 데모 흐름
+## Three-minute demo flow
 
-1. **0:00–0:25 문제** — AI가 거래를 추천하는 것보다, 무엇을 할 수 있는지 검증하는 일이 먼저라고 설명한다.
-2. **0:25–0:55 캐릭터 위임** — 캐릭터별 고정 전략과 owner가 서명하는 자산·DEX·기간·상한·예산을 보여준다.
-3. **0:55–1:25 자동 실행** — 작은 리밸런싱과 온체인 `Decided`·`Executed`·비용 기록을 보여준다.
-4. **1:25–1:55 승인 경계** — 한도를 넘은 주문이 멈추고, Agent OS가 아니라 owner 지갑만 직접 승인할 수 있음을 보여준다.
-5. **1:55–2:25 Agent OS** — `driftmate` 스킬이 `/status`와 Binance 시장 데이터를 별도 구역으로 설명하는 모습을 보여준다.
-6. **2:25–2:50 손실·신뢰** — 세션 기준점, 운영비 포함 손익, 실망 기록에 따른 재량 축소를 보여준다.
-7. **2:50–3:00 결론** — “connected by Binance, constrained by code, verified on-chain”으로 끝낸다.
+1. **0:00–0:25 — Problem:** Explain why verifying what an AI can do matters more than another trading recommendation.
+2. **0:25–0:55 — Character delegation:** Show each character's fixed strategy and the owner-signed assets, DEX, duration, caps, and budget.
+3. **0:55–1:25 — Automatic execution:** Show a small rebalance and the on-chain `Decided`, `Executed`, and cost records.
+4. **1:25–1:55 — Approval boundary:** Show an over-limit order stopping until the owner wallet—not Agent OS—approves it directly.
+5. **1:55–2:25 — Agent OS:** Show the `driftmate` skill explaining `/status` and Binance market data in separate sections.
+6. **2:25–2:50 — Loss and trust:** Show the session baseline, P&L after operating costs, and reduced discretion after an owner disappointment signal.
+7. **2:50–3:00 — Close:** End with “connected by Binance, constrained by code, verified on-chain.”
 
-## 녹화 전 체크리스트
+## Pre-submission checklist
 
-- [ ] 저장소 URL과 3분 이하 데모 영상 URL 준비
-- [ ] `skills/driftmate/SKILL.md`가 저장소에서 보임
-- [ ] Binance MCP 또는 `query-token-info` 호출 흔적이 영상에 보임
-- [ ] Binance 데이터가 주문 판단과 분리됐다는 설명 포함
-- [ ] owner 직접 승인과 출금 권한 부재를 화면에서 확인
-- [ ] 실자금이 아닌 로컬 Anvil 데모임을 표시
-- [ ] `pnpm test`, `typecheck`, 웹 빌드, Forge, E2E 통과 화면 준비
-- [ ] 공개 공지의 팔로우·리포스트·답글 및 제출 설문 완료
+- [ ] Repository URL and demo video URL under three minutes are ready.
+- [ ] `skills/driftmate/SKILL.md` is visible in the repository.
+- [ ] A Binance MCP or `query-token-info` call is visible in the video.
+- [ ] The demo explains that Binance data is separate from order decisions.
+- [ ] The screen shows direct owner approval and the absence of agent withdrawal permission.
+- [ ] The demo is clearly labeled as local Anvil, not real funds.
+- [ ] `pnpm test`, typecheck, web build, Forge, and E2E results are ready.
+- [ ] Complete the announcement follow, repost, reply, and submission form.
 
-마감은 **2026-09-08 23:59 UTC / 2026-09-09 08:59 KST**다. 제출 직전 공식 공지와 설문에서 자격 지역, 링크 형식, 필수 계정 정보를 다시 확인한다.
+The deadline is **September 8, 2026 at 23:59 UTC / September 9, 2026 at 08:59 KST**. Recheck the official announcement and form for eligible regions, link formats, and required account details immediately before submitting.

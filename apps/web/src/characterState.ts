@@ -1,11 +1,11 @@
 import type { Bps, Bytes32, KeeperStatus, PendingDecision, TrackRecord } from '@soon/shared'
 
 /**
- * 캐릭터가 지을 수 있는 표정.
+ * Expressions available to the character.
  *
- * 손실 구간에서 밝은 표정이 나오면 조롱처럼 읽힌다 (R9.3). 그걸 프롬프트나
- * 설정으로 막으면 언젠가 새어나온다 — 타입으로 갈라 두어 손실 상태에서
- * 밝은 표정을 **고를 수 없게** 만든다.
+ * A cheerful expression during a loss can feel mocking (R9.3). Prompts and
+ * configuration can leak, so the type prevents selecting a cheerful expression
+ * for a loss state.
  */
 export type Expression =
   | 'idle'
@@ -17,7 +17,7 @@ export type Expression =
   | 'apologetic'
   | 'quiet'
 
-/** 손실 구간에서 허용되는 표정. 밝은 계열이 아예 들어 있지 않다. */
+/** Expressions allowed during a loss; cheerful variants are excluded by type. */
 export type LosingExpression = Extract<Expression, 'concerned' | 'apologetic' | 'quiet'>
 
 export type AgentState =
@@ -40,8 +40,8 @@ function sameHex(a: string | null | undefined, b: string | null | undefined): bo
 }
 
 /**
- * Keeper의 표시용 상태를 현재 온체인 세션과 대조한다.
- * owner 승인에 쓰는 pending은 온체인 pending과 decision/nonce/만료가 모두 같아야 한다.
+ * Reconcile the keeper's display state with the current on-chain session.
+ * A pending owner approval must match the on-chain decision, nonce, and expiry.
  */
 export function currentKeeperStatus(status: KeeperStatus | undefined, current: CurrentStatus): KeeperStatus | undefined {
   if (
@@ -109,7 +109,7 @@ export function currentKeeperStatus(status: KeeperStatus | undefined, current: C
   }
 }
 
-/** 표정 상태의 우선순위를 한 곳에 고정한다. */
+/** Keep expression-state priority in one place. */
 export function deriveAgentState(status: KeeperStatus | undefined, userDisappointed: boolean): AgentState {
   if (status?.phase === 'deciding') return { kind: 'deciding' }
   if (status?.phase === 'awaiting_approval' && status.pending) return { kind: 'awaiting_approval' }
@@ -126,8 +126,7 @@ export function deriveAgentState(status: KeeperStatus | undefined, userDisappoin
 }
 
 /**
- * 손실 상황의 표정. 반환 타입이 LosingExpression이라
- * 여기에 'cheerful'을 넣으면 컴파일이 깨진다.
+ * Expression during a loss. The LosingExpression return type rejects 'cheerful'.
  */
 function losingExpression(state: Extract<AgentState, { kind: 'loss' }>): LosingExpression {
   if (state.userDisappointed) return 'apologetic'
@@ -143,7 +142,7 @@ export function expressionFor(state: AgentState): Expression {
     case 'awaiting_approval':
       return 'asking'
     case 'executed':
-      // 손익을 모르면 들뜨지 않는다. 이익이어도 과하게 반응하지 않는다.
+      // Stay neutral when P&L is unknown and restrained even when it is positive.
       if (state.pnlBps === undefined) return 'idle'
       return (state.pnlBps as number) > 0 ? 'pleased' : 'idle'
     case 'loss':
@@ -151,18 +150,18 @@ export function expressionFor(state: AgentState): Expression {
   }
 }
 
-/** 손실 보고에서는 수치가 캐릭터 반응보다 먼저 온다 (R9.4). */
+/** In a loss report, the number comes before the character reaction (R9.4). */
 export type LossReport = Readonly<{
-  /** 먼저 보여줄 사실. */
+  /** Fact shown first. */
   headline: string
-  /** 그 다음에 붙는 캐릭터 반응. */
+  /** Character reaction shown second. */
   reaction: string
 }>
 
 export function buildLossReport(pnlBps: Bps, characterName: string): LossReport {
   const pct = (Math.abs(pnlBps as number) / 100).toFixed(2)
   return {
-    headline: `${pct}% 줄었어요.`,
-    reaction: `${characterName}가 상황을 지켜보고 있어요.`,
+    headline: `${pct}% down.`,
+    reaction: `${characterName} is monitoring the situation.`,
   }
 }

@@ -68,14 +68,14 @@ describe('validateDraft — 한도 관계', () => {
   it('자동 실행 임계값이 하드캡을 넘으면 거부한다 (R5.6)', () => {
     const v = validateDraft(input({ maxTrade: '100', autoThreshold: '500' }))
     expect(v.ok).toBe(false)
-    if (!v.ok) expect(v.errors.some((e) => e.includes('클 수 없어요'))).toBe(true)
+    if (!v.ok) expect(v.errors.some((e) => e.includes('cannot exceed'))).toBe(true)
   })
 
   it('운영비 한도가 예산을 넘으면 거부한다 (R3.7)', () => {
     // 운영비는 거래와 같은 예산을 쓴다. 별도 주머니처럼 잡을 수 없다.
     const v = validateDraft(input({ budget: '100', operatingCap: '500' }))
     expect(v.ok).toBe(false)
-    if (!v.ok) expect(v.errors.some((e) => e.includes('예산 안에'))).toBe(true)
+    if (!v.ok) expect(v.errors.some((e) => e.includes('within the total budget'))).toBe(true)
   })
 
   it('예산이 0이면 거부한다', () => {

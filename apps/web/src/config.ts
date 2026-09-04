@@ -1,10 +1,10 @@
 import type { Address } from '@soon/shared'
 
 /**
- * 체인·컨트랙트 설정은 전부 환경값에서 온다 (R1.4).
+ * All chain and contract settings come from environment values (R1.4).
  *
- * 코드에 체인 ID나 주소를 박아두면 다른 EVM에 올릴 때 코드를 고쳐야 하고,
- * 그 순간 "체인 중립"이 말뿐이 된다. 설정만 바꿔 배포되는 상태를 유지한다.
+ * Hard-coded chain IDs or addresses would require code changes for another EVM.
+ * Environment-only configuration keeps the deployment chain-neutral.
  */
 export type AppConfig = Readonly<{
   chainId: number
@@ -14,15 +14,15 @@ export type AppConfig = Readonly<{
   dex: Address
   token: Address
   quote: Address
-  /** 자동 실행을 수행하는 주소. 볼트는 이 주소만 실행자로 인정한다. */
+  /** Automatic executor. The vault accepts execution only from this address. */
   executor: Address
-  /** 있으면 트랙레코드에서 트랜잭션으로 링크한다. 로컬 체인에는 없다. */
+  /** Optional explorer used for track-record transaction links. Absent on local chains. */
   explorerUrl?: string
 }>
 
 function required(key: string): string {
   const v = import.meta.env[key] as string | undefined
-  if (!v) throw new Error(`환경변수 ${key}가 설정되지 않았다`)
+  if (!v) throw new Error(`Environment variable ${key} is not configured.`)
   return v
 }
 

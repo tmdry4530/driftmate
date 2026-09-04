@@ -171,7 +171,7 @@ export class ViemVaultWriter implements VaultWriter {
 
   private async send(address: Address, functionName: string, args: readonly unknown[]) {
     const account = this.wallet.account
-    if (!account) throw new Error('실행자 계정이 없다')
+    if (!account) throw new Error('Executor account is missing.')
     const { request } = await this.publicClient.simulateContract({
       address,
       abi: VAULT_ABI,
@@ -181,7 +181,7 @@ export class ViemVaultWriter implements VaultWriter {
     })
     const hash = await this.wallet.writeContract(request)
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash })
-    if (receipt.status !== 'success') throw new Error(`${functionName} 트랜잭션이 실패했다`)
+    if (receipt.status !== 'success') throw new Error(`${functionName} transaction failed.`)
     return hash
   }
 

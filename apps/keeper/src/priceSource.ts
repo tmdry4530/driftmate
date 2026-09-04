@@ -6,7 +6,7 @@ const DEX_ABI = parseAbi(dexAbi)
 
 export class PriceUnavailableError extends Error {
   constructor(cause: unknown) {
-    super('가격을 읽지 못했다')
+    super('Could not read the price.')
     this.name = 'PriceUnavailableError'
     this.cause = cause
   }

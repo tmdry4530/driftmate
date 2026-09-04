@@ -1,8 +1,8 @@
 /**
- * 지갑 연결 상태 판정 (R1.1, R1.3, R1.5).
+ * Wallet connection guard (R1.1, R1.3, R1.5).
  *
- * 순수 함수로 떼어내 브라우저 없이 검증한다. 실행 기능을 언제 잠글지가
- * 여기 한 곳에서만 정해지므로 화면마다 조건이 갈리지 않는다.
+ * Kept pure so it can be verified without a browser. All execution-lock rules
+ * live here, preventing screens from applying different conditions.
  */
 export type GuardState =
   | { canExecute: true; address: `0x${string}`; chainId: number }
@@ -32,6 +32,6 @@ export function evaluateGuard(input: {
 
 export function guardMessage(state: GuardState): string {
   if (state.canExecute) return ''
-  if (state.reason === 'disconnected') return '지갑을 연결하면 시작할 수 있어요.'
-  return `${state.expectedChainName} 네트워크로 바꿔 주세요. 지금은 ${state.connectedChainId}번 네트워크에 연결돼 있어요.`
+  if (state.reason === 'disconnected') return 'Connect a wallet to get started.'
+  return `Switch to the ${state.expectedChainName} network. You are connected to chain ${state.connectedChainId}.`
 }

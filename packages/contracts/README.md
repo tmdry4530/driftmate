@@ -1,12 +1,12 @@
 # Contracts
 
-DriftMate의 격리 볼트, 검증용 ERC-3009 토큰과 Mock DEX를 담은 Foundry 패키지다.
+Foundry package containing DriftMate's isolated vault, a test ERC-3009 token, and a mock DEX.
 
-저장소 루트에서 실행한다.
+Run from the repository root.
 
 ```bash
 pnpm contracts:setup
 pnpm contracts:test
 ```
 
-`contracts:setup`은 `forge-std` v1.16.2를 ignored `lib/`에 복원한다. 전체 로컬 체인 흐름은 루트의 `pnpm e2e`로 검증한다.
+`contracts:setup` restores `forge-std` v1.16.2 into the ignored `lib/` directory. Run `pnpm e2e` from the repository root to verify the complete local-chain flow.

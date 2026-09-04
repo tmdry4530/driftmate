@@ -395,7 +395,7 @@ describe('Keeper — 실행되지 않은 판단도 남는다 (R7.4)', () => {
 
 describe('Keeper — status와 Narrator', () => {
   it('판단을 기록한 뒤 비용을 한 번 연결하고 검증된 설명을 캐시한다', async () => {
-    const llm: LlmClient = { complete: async () => '이번에는 그대로 뒀어요.' }
+    const llm: LlmClient = { complete: async () => 'I left it unchanged this time.' }
     const { keeper, writer, adapter } = build({ llm })
 
     await keeper.tick()
@@ -406,7 +406,7 @@ describe('Keeper — status와 Narrator', () => {
       phase: 'idle',
       delegationId: '1',
       lastDecision: { outcome: 'held' },
-      narration: { text: '이번에는 그대로 뒀어요.', fallback: false },
+      narration: { text: 'I left it unchanged this time.', fallback: false },
       snapshot: { blockNumber: '100' },
       lossReport: { status: 'not_loss' },
     })
@@ -417,7 +417,7 @@ describe('Keeper — status와 Narrator', () => {
     const llm: LlmClient = {
       complete: async () => {
         calls += 1
-        return '이번에는 그대로 뒀어요.'
+        return 'I left it unchanged this time.'
       },
     }
     const built = build({ llm })
@@ -480,7 +480,7 @@ describe('Keeper — status와 Narrator', () => {
     const records: TrackRecord[] = [disappointed(1n), disappointed(2n), disappointed(3n)]
     const built = build({
       records,
-      llm: { complete: async () => '확인을 받고 진행할게요.' },
+      llm: { complete: async () => 'I will ask for approval before proceeding.' },
     })
     built.chain.tokenPriceE18 = 2_400_000_000n
     await built.keeper.tick()
@@ -518,7 +518,7 @@ describe('Keeper — status와 Narrator', () => {
     const refreshed = await built.keeper.refreshStatus()
 
     expect(refreshed.lastDecision?.outcome).toBe('executed')
-    expect(refreshed.narration?.text).not.toBe('확인을 받고 진행할게요.')
+    expect(refreshed.narration?.text).not.toBe('I will ask for approval before proceeding.')
     expect(refreshed.narration?.fallback).toBe(true)
   })
 })
@@ -540,7 +540,7 @@ describe('CostMeter — 결제 수단과 분리 (R11.3)', () => {
     const meter = new CostMeter(new StubAdapter(600n))
 
     await meter.acquire({ kind: 'price_data' }, 1_000n, 1_000n)
-    await expect(meter.acquire({ kind: 'price_data' }, 1_000n, 1_000n)).rejects.toThrow('예산이 소진')
+    await expect(meter.acquire({ kind: 'price_data' }, 1_000n, 1_000n)).rejects.toThrow('budget is exhausted')
   })
 
   it('고정 단가 어댑터도 같은 인터페이스로 취득한다', async () => {

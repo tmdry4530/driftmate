@@ -1,10 +1,9 @@
 import { formatQuote } from '../format.js'
 
 /**
- * 현재 위임 상태와 철회 (R3.5, R11.2).
+ * Current delegation status and revocation (R3.5, R11.2).
  *
- * 철회 버튼을 눈에 띄는 곳에 둔다 — 맡긴 것을 되돌리는 길이 찾기 어려우면
- * 비수탁이라는 말이 형식만 남는다.
+ * Keep revocation prominent; non-custodial control must be easy to exercise.
  */
 export function DelegationStatus({
   budget,
@@ -28,39 +27,39 @@ export function DelegationStatus({
   if (budget === undefined || budgetSpent === undefined) return null
 
   const remaining = budget > budgetSpent ? budget - budgetSpent : 0n
-  const nearlyOut = budget > 0n && remaining * 10n < budget // 10% 미만
+  const nearlyOut = budget > 0n && remaining * 10n < budget // Below 10%.
   const exhausted = remaining === 0n
 
   return (
     <div className="card">
-      <h2>맡긴 예산</h2>
-      <p className="hint">거래와 운영비가 이 하나를 함께 씁니다.</p>
+      <h2>Delegated budget</h2>
+      <p className="hint">Trades and operating costs share this single budget.</p>
 
-      <div className="row"><span className="k">남은 예산</span><span>{formatQuote(remaining)}</span></div>
-      <div className="row"><span className="k">쓴 금액</span><span>{formatQuote(budgetSpent)}</span></div>
+      <div className="row"><span className="k">Remaining budget</span><span>{formatQuote(remaining)}</span></div>
+      <div className="row"><span className="k">Spent</span><span>{formatQuote(budgetSpent)}</span></div>
       {operatingCap !== undefined && (
-        <div className="row"><span className="k">그중 운영비 한도</span><span>{formatQuote(operatingCap)}</span></div>
+        <div className="row"><span className="k">Operating-cost cap</span><span>{formatQuote(operatingCap)}</span></div>
       )}
       {operatingSpent !== undefined && (
-        <div className="row"><span className="k">누적 운영비</span><span>{formatQuote(operatingSpent)}</span></div>
+        <div className="row"><span className="k">Operating costs spent</span><span>{formatQuote(operatingSpent)}</span></div>
       )}
       {expiry !== undefined && (
-        <div className="row"><span className="k">위임 만료</span><span>{new Date(Number(expiry) * 1000).toLocaleString('ko-KR')}</span></div>
+        <div className="row"><span className="k">Delegation expires</span><span>{new Date(Number(expiry) * 1000).toLocaleString('en-US')}</span></div>
       )}
 
       {(exhausted || nearlyOut) && (
         <div className="notice" style={{ marginTop: 12 }}>
           {exhausted
-            ? '예산을 다 썼어요. 갱신하기 전까지 판단도 거래도 하지 않아요.'
-            : '예산이 얼마 남지 않았어요. 곧 멈추게 돼요.'}
+            ? 'The budget is exhausted. Decisions and trades stop until renewal.'
+            : 'The budget is almost exhausted. The agent will stop soon.'}
         </div>
       )}
 
       <button className="ghost" style={{ marginTop: 12 }} disabled={!canRevoke || busy} onClick={onRevoke}>
-        위임 철회하기
+        Revoke delegation
       </button>
       <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>
-        철회하면 자동 실행이 즉시 멈춰요. 추가 예치나 인출도 기존 위임을 끝내며, 인출 자산은 owner에게만 돌아가요.
+        Revocation stops automatic execution immediately. Deposits and withdrawals also end the current delegation, and withdrawals return assets only to the owner.
       </p>
     </div>
   )

@@ -21,7 +21,7 @@ export function startApi(keeper: Keeper, port: number, allowOrigin = '*', host =
     }
 
     res.writeHead(404, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ error: '없는 경로' }))
+    res.end(JSON.stringify({ error: 'Not found' }))
   })
   server.listen(port, host)
   return server

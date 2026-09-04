@@ -17,12 +17,12 @@ function loadScript(src: string, marker: string, ready: () => boolean): Promise<
       if (ready()) resolve()
       else {
         script.remove()
-        reject(new Error(`${src} 초기화 실패`))
+        reject(new Error(`${src} initialization failed`))
       }
     }
     const onError = () => {
       script.remove()
-      reject(new Error(`${src} 로드 실패`))
+      reject(new Error(`${src} failed to load`))
     }
     if (existing) {
       existing.addEventListener('load', onLoad, { once: true })
@@ -66,7 +66,7 @@ async function runtime(): Promise<Live2DRuntime> {
 export const live2dLoader: Live2DLoader = {
   async load(canvas, characterId, signal) {
     const loaded = await runtime()
-    if (signal.aborted) throw new DOMException('Live2D 로드 취소', 'AbortError')
+    if (signal.aborted) throw new DOMException('Live2D loading cancelled', 'AbortError')
     return loaded.mountLive2D(canvas, characterId, signal)
   },
 }

@@ -151,7 +151,7 @@ describe('computeTrust — 실망 표시 (R10.6, R10.7)', () => {
 
     expect(after.score).toBeLessThan(before.score)
     expect(after.discretionBps).toBeLessThan(before.discretionBps)
-    expect(after.contributions.some((c) => c.reason.includes('실망'))).toBe(true)
+    expect(after.contributions.some((c) => c.reason.includes('disappointment'))).toBe(true)
   })
 
   it('실망으로 깎인 점수는 실적으로만 되돌아온다', () => {

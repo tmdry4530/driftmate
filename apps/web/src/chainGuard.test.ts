@@ -12,7 +12,7 @@ describe('chainGuard (R1.1, R1.3, R1.5)', () => {
       expectedChainName: 'Anvil',
     })
     expect(s.canExecute).toBe(false)
-    expect(guardMessage(s)).toContain('지갑을 연결')
+    expect(guardMessage(s)).toContain('Connect a wallet')
   })
 
   it('다른 체인에 연결되면 실행을 막고 전환을 안내한다', () => {

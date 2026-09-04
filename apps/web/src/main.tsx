@@ -28,11 +28,11 @@ try {
   root.render(
     <div className="app">
       <div className="notice">
-        <strong>설정이 필요해요.</strong>
+        <strong>Configuration required.</strong>
         <p style={{ margin: '8px 0 0' }}>
-          {e instanceof Error ? e.message : '알 수 없는 오류'}
+          {e instanceof Error ? e.message : 'Unknown error'}
           <br />
-          <code>apps/web/.env.example</code>을 <code>.env</code>로 복사한 뒤 배포한 주소를 채워 주세요.
+          Copy <code>apps/web/.env.example</code> to <code>.env</code>, then add the deployed addresses.
         </p>
       </div>
     </div>,
