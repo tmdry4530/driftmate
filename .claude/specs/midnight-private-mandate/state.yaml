@@ -6,8 +6,8 @@ mode:
     - migration
     - refactor
 risk: L2
-phase: RELEASE_READY
-status: active
+phase: CLOSED
+status: complete
 repository:
   base_commit: "2edfd121fc4dc392d2b1b11cd5deed7118527114"
   branch: hackathon/midnight-korea
@@ -74,6 +74,9 @@ convergence:
 release:
   target: "https://tmdry4530.github.io/driftmate/"
   artifact_sha256: "bf6bccc20892c43fc16aaabefd5f102b7801ee24d68f23f813220e0675a9aff6"
+  deployed_commit: "b8b0a23b137265393c4d3f5b7be5bbd35553f886"
+  deployed_at: "2026-09-04T10:18:44Z"
+  post_deploy_verified_at: "2026-09-04T10:20:51Z"
   preflight:
     pages_build: passed
     base_path: passed
@@ -83,5 +86,5 @@ release:
 delivery:
   code_complete: true
   release_ready: true
-  deployed: false
-  post_deploy_verified: false
+  deployed: true
+  post_deploy_verified: true

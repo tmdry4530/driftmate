@@ -1,0 +1,40 @@
+{
+  "target": "github-pages",
+  "url": "https://tmdry4530.github.io/driftmate/",
+  "deployedCommit": "b8b0a23b137265393c4d3f5b7be5bbd35553f886",
+  "releaseArtifactSha256": "bf6bccc20892c43fc16aaabefd5f102b7801ee24d68f23f813220e0675a9aff6",
+  "localPreflight": {
+    "webTests": { "passed": 11, "exitCode": 0 },
+    "overallTests": { "passed": 132, "exitCode": 0 },
+    "typecheck": { "exitCode": 0 },
+    "defaultBuild": { "exitCode": 0 },
+    "pagesBuild": { "exitCode": 0 },
+    "pagesBasePath": "pass",
+    "zkAssetPath": "pass",
+    "productionPreview": "pass"
+  },
+  "remote": {
+    "baseContract": {
+      "runId": 33862495960,
+      "conclusion": "success",
+      "url": "https://github.com/tmdry4530/driftmate/actions/runs/33862495960"
+    },
+    "pages": {
+      "runId": 33862495851,
+      "attempts": 2,
+      "conclusion": "success",
+      "url": "https://github.com/tmdry4530/driftmate/actions/runs/33862495851",
+      "recovery": "Added hackathon/midnight-korea to the github-pages environment branch policy after attempt 1 was rejected."
+    }
+  },
+  "postDeploy": {
+    "pageStatus": 200,
+    "proverAssetStatus": 200,
+    "privateProvenPublicBoundaryVisible": true,
+    "honestEmptyReceiptVisible": true,
+    "viewportWidth": 1280,
+    "documentScrollWidth": 1280,
+    "browserErrors": 0
+  },
+  "verifiedAt": "2026-09-04T10:20:51Z"
+}
