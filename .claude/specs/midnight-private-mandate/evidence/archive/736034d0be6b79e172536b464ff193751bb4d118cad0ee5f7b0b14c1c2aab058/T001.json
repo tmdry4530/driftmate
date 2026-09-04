@@ -1,0 +1,39 @@
+{
+  "task": "T001",
+  "specHash": "736034d0be6b79e172536b464ff193751bb4d118cad0ee5f7b0b14c1c2aab058",
+  "changedFiles": [
+    ".gitignore",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "scripts/midnight/compile.sh",
+    "scripts/midnight/setup.sh",
+    "scripts/midnight/versions.sh",
+    "packages/midnight-contract/CharacterMandate.compact",
+    "packages/midnight-contract/package.json",
+    "packages/midnight-contract/managed/character-mandate/**",
+    "packages/midnight-contract/src/CharacterMandate.test.ts",
+    "packages/midnight-contract/src/index.ts",
+    "packages/midnight-contract/src/index.test.ts",
+    "packages/midnight-contract/src/simulator.ts",
+    "packages/midnight-contract/src/witnesses.ts"
+  ],
+  "commands": [
+    { "command": "pnpm midnight:versions", "exitCode": 0 },
+    { "command": "pnpm midnight:compile", "exitCode": 0 },
+    { "command": "pnpm midnight:test", "exitCode": 0 },
+    { "command": "pnpm test", "exitCode": 0 },
+    { "command": "pnpm typecheck", "exitCode": 0 }
+  ],
+  "requirements": {
+    "R2.1": "pass",
+    "R2.2": "pass",
+    "R2.3": "pass",
+    "R3.1": "pass",
+    "R5.4": "pass",
+    "R8.2": "pass",
+    "R8.3": "pass",
+    "R8.5": "pass"
+  },
+  "verifiedAt": "2026-09-04T09:08:23Z"
+}

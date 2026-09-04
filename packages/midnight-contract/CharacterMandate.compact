@@ -1,0 +1,695 @@
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+export enum ReceiptStatus {
+  NONE,
+  RELATIONSHIP_OPENED,
+  RELATIONSHIP_REVOKED,
+  HELD,
+  PROVED_AUTO_ELIGIBLE,
+  OWNER_REQUIRED,
+  OWNER_APPROVED,
+  OWNER_REJECTED,
+  RELATIONSHIP_UPDATED
+}
+
+export struct Receipt {
+  decisionId: Bytes<32>,
+  status: ReceiptStatus,
+  catalogVersion: Uint<16>,
+  trustFormulaVersion: Uint<16>,
+  circuitVersion: Uint<16>,
+  sequence: Uint<64>
+}
+
+export ledger ownerCommitment: Bytes<32>;
+export ledger mandateCommitment: Bytes<32>;
+export ledger relationshipCommitment: Bytes<32>;
+export ledger mandateVersion: Counter;
+export ledger active: Boolean;
+export ledger usedDecisionIds: Set<Bytes<32>>;
+export ledger pendingDecisionId: Maybe<Bytes<32>>;
+export ledger receiptSequence: Counter;
+export ledger lastReceipt: Receipt;
+
+witness localOwnerSecret(): Bytes<32>;
+
+export circuit computeOwnerCommitment(
+  ownerSecret: Bytes<32>,
+  version: Uint<64>
+): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "driftmate:owner:v1"),
+    ownerSecret,
+    version as Field as Bytes<32>
+  ]);
+}
+
+export circuit computeMandateCommitment(
+  characterId: Uint<8>,
+  targetWeightBps: Uint<16>,
+  allowedDriftBps: Uint<16>,
+  autoThreshold: Uint<64>,
+  budget: Uint<64>,
+  expiry: Uint<64>,
+  nonce: Bytes<32>,
+  version: Uint<64>
+): Bytes<32> {
+  return persistentHash<Vector<9, Bytes<32>>>([
+    pad(32, "driftmate:mandate:v1"),
+    characterId as Field as Bytes<32>,
+    targetWeightBps as Field as Bytes<32>,
+    allowedDriftBps as Field as Bytes<32>,
+    autoThreshold as Field as Bytes<32>,
+    budget as Field as Bytes<32>,
+    expiry as Field as Bytes<32>,
+    nonce,
+    version as Field as Bytes<32>
+  ]);
+}
+
+export circuit computeRelationshipCommitment(
+  ownerHash: Bytes<32>,
+  mandateHash: Bytes<32>,
+  spent: Uint<64>,
+  trustScore: Uint<8>,
+  historyDigest: Bytes<32>,
+  relationshipNonce: Bytes<32>,
+  version: Uint<64>
+): Bytes<32> {
+  return persistentHash<Vector<8, Bytes<32>>>([
+    pad(32, "driftmate:relationship:v1"),
+    ownerHash,
+    mandateHash,
+    spent as Field as Bytes<32>,
+    trustScore as Field as Bytes<32>,
+    historyDigest,
+    relationshipNonce,
+    version as Field as Bytes<32>
+  ]);
+}
+
+circuit decisionKey(decisionId: Bytes<32>, version: Uint<64>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "driftmate:decision:v1"),
+    decisionId,
+    version as Field as Bytes<32>
+  ]);
+}
+
+circuit eventKey(decisionId: Bytes<32>, eventKind: Uint<8>, version: Uint<64>): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([
+    pad(32, "driftmate:event:v1"),
+    decisionId,
+    eventKind as Field as Bytes<32>,
+    version as Field as Bytes<32>
+  ]);
+}
+
+export circuit computeHistoryAfter(
+  previous: Bytes<32>,
+  decisionId: Bytes<32>,
+  eventKind: Uint<8>,
+  sourceDigest: Bytes<32>,
+  newTrustScore: Uint<8>,
+  newSpent: Uint<64>
+): Bytes<32> {
+  return persistentHash<Vector<7, Bytes<32>>>([
+    pad(32, "driftmate:history:v1"),
+    previous,
+    decisionId,
+    eventKind as Field as Bytes<32>,
+    sourceDigest,
+    newTrustScore as Field as Bytes<32>,
+    newSpent as Field as Bytes<32>
+  ]);
+}
+
+circuit assertMandate(
+  characterId: Uint<8>,
+  targetWeightBps: Uint<16>,
+  allowedDriftBps: Uint<16>,
+  autoThreshold: Uint<64>,
+  budget: Uint<64>,
+  expiry: Uint<64>,
+  nonce: Bytes<32>,
+  relationshipNonce: Bytes<32>
+): [] {
+  const MAX_VALUE = 800000000000000;
+  assert(characterId == 1 || characterId == 2, "unknown character");
+  assert(
+    (characterId == 1 && allowedDriftBps == 300) ||
+    (characterId == 2 && allowedDriftBps == 1000),
+    "character strategy mismatch"
+  );
+  assert(targetWeightBps > allowedDriftBps, "target below strategy band");
+  assert(targetWeightBps + allowedDriftBps < 10000, "target above strategy band");
+  assert(autoThreshold > 0 && autoThreshold <= budget, "invalid threshold");
+  assert(budget <= MAX_VALUE, "budget out of range");
+  assert(expiry > 0, "invalid expiry");
+  assert(nonce != pad(32, ""), "invalid mandate nonce");
+  assert(relationshipNonce != pad(32, ""), "invalid relationship nonce");
+  assert(nonce != relationshipNonce, "nonces must differ");
+}
+
+circuit assertRelationship(
+  ownerSecret: Bytes<32>,
+  spent: Uint<64>,
+  trustScore: Uint<8>,
+  historyDigest: Bytes<32>,
+  relationshipNonce: Bytes<32>,
+  version: Uint<64>
+): [] {
+  assert(trustScore <= 100, "invalid trust score");
+  const ownerHash = computeOwnerCommitment(ownerSecret, version);
+  assert(ownerHash == ownerCommitment, "owner authentication failed");
+  assert(
+    computeRelationshipCommitment(
+      ownerHash,
+      mandateCommitment,
+      spent,
+      trustScore,
+      historyDigest,
+      relationshipNonce,
+      version
+    ) == relationshipCommitment,
+    "relationship state mismatch"
+  );
+}
+
+circuit quotientIsValid(
+  dividend: Uint<128>,
+  divisor: Uint<64>,
+  quotient: Uint<64>,
+  remainder: Uint<64>
+): Boolean {
+  return quotient * divisor + remainder == dividend && remainder < divisor;
+}
+
+circuit multiply64x16(left: Uint<64>, right: Uint<16>): Uint<128> {
+  return left * right;
+}
+
+circuit absDiff16(left: Uint<16>, right: Uint<16>): Uint<16> {
+  if (left >= right) {
+    return left - right;
+  } else {
+    return right - left;
+  }
+}
+
+circuit absDiff64(left: Uint<64>, right: Uint<64>): Uint<64> {
+  if (left >= right) {
+    return left - right;
+  } else {
+    return right - left;
+  }
+}
+
+circuit max16(left: Uint<16>, right: Uint<16>): Uint<16> {
+  if (left >= right) {
+    return left;
+  } else {
+    return right;
+  }
+}
+
+circuit min64(left: Uint<64>, right: Uint<64>): Uint<64> {
+  if (left <= right) {
+    return left;
+  } else {
+    return right;
+  }
+}
+
+circuit goalWeight(
+  characterId: Uint<8>,
+  currentWeightBps: Uint<16>,
+  targetWeightBps: Uint<16>,
+  allowedDriftBps: Uint<16>
+): Uint<16> {
+  if (characterId == 1) {
+    return targetWeightBps;
+  } else if (currentWeightBps > targetWeightBps) {
+    return ((targetWeightBps as Uint<32>) + (allowedDriftBps as Uint<32>)) as Uint<16>;
+  } else {
+    return targetWeightBps - allowedDriftBps;
+  }
+}
+
+circuit minTradeValue(characterId: Uint<8>): Uint<64> {
+  if (characterId == 1) {
+    return 1000000;
+  } else {
+    return 5000000;
+  }
+}
+
+circuit addTrust(score: Uint<8>, amount: Uint<8>): Uint<8> {
+  const sum = (score as Uint<16>) + (amount as Uint<16>);
+  if (sum > 100) {
+    return 100;
+  } else {
+    return sum as Uint<8>;
+  }
+}
+
+circuit subtractTrust(score: Uint<8>, amount: Uint<8>): Uint<8> {
+  if (score < amount) {
+    return 0;
+  } else {
+    return score - amount;
+  }
+}
+
+export circuit computeTrustAfterEvent(
+  oldTrustScore: Uint<8>,
+  eventKind: Uint<8>,
+  valueQuote: Uint<64>,
+  frictionQuote: Uint<64>,
+  operatingCost: Uint<64>
+): Uint<8> {
+  if (eventKind == 1) {
+    assert(valueQuote > 0, "execution value required");
+    const friction = (frictionQuote as Uint<128>) + (operatingCost as Uint<128>);
+    const frictionBpsDividend = friction * 10000;
+    const efficientBoundary = (valueQuote as Uint<128>) * 50;
+    const wastefulBoundary = (valueQuote as Uint<128>) * 150;
+    if (frictionBpsDividend <= efficientBoundary) {
+      return addTrust(oldTrustScore, 3);
+    } else if (frictionBpsDividend > wastefulBoundary) {
+      return subtractTrust(oldTrustScore, 5);
+    } else {
+      return oldTrustScore;
+    }
+  } else if (eventKind == 2) {
+    return subtractTrust(oldTrustScore, 2);
+  } else if (eventKind == 3) {
+    return subtractTrust(oldTrustScore, 3);
+  } else {
+    return subtractTrust(oldTrustScore, 15);
+  }
+}
+
+circuit spentAfterEvent(oldSpent: Uint<64>, eventKind: Uint<8>, valueQuote: Uint<64>): Uint<64> {
+  if (eventKind == 1) {
+    return ((oldSpent as Uint<128>) + (valueQuote as Uint<128>)) as Uint<64>;
+  } else {
+    return oldSpent;
+  }
+}
+
+constructor() {
+  ownerCommitment = pad(32, "");
+  mandateCommitment = pad(32, "");
+  relationshipCommitment = pad(32, "");
+  active = false;
+  pendingDecisionId = none<Bytes<32>>();
+  lastReceipt = Receipt {
+    decisionId: pad(32, ""),
+    status: ReceiptStatus.NONE,
+    catalogVersion: 1,
+    trustFormulaVersion: 1,
+    circuitVersion: 1,
+    sequence: 0
+  };
+}
+
+export circuit openRelationship(
+  characterId: Uint<8>,
+  targetWeightBps: Uint<16>,
+  allowedDriftBps: Uint<16>,
+  autoThreshold: Uint<64>,
+  budget: Uint<64>,
+  expiry: Uint<64>,
+  nonce: Bytes<32>,
+  relationshipNonce: Bytes<32>
+): [] {
+  assert(!active, "relationship already active");
+  assertMandate(
+    characterId,
+    targetWeightBps,
+    allowedDriftBps,
+    autoThreshold,
+    budget,
+    expiry,
+    nonce,
+    relationshipNonce
+  );
+
+  mandateVersion.increment(1);
+  const version = mandateVersion.read() as Uint<64>;
+  const ownerHash = computeOwnerCommitment(localOwnerSecret(), version);
+  const mandateHash = computeMandateCommitment(
+    characterId,
+    targetWeightBps,
+    allowedDriftBps,
+    autoThreshold,
+    budget,
+    expiry,
+    nonce,
+    version
+  );
+
+  ownerCommitment = disclose(ownerHash);
+  mandateCommitment = disclose(mandateHash);
+  relationshipCommitment = disclose(
+    computeRelationshipCommitment(
+      ownerHash,
+      mandateHash,
+      0,
+      50,
+      pad(32, ""),
+      relationshipNonce,
+      version
+    )
+  );
+  active = true;
+  receiptSequence.increment(1);
+  lastReceipt = Receipt {
+    decisionId: pad(32, ""),
+    status: ReceiptStatus.RELATIONSHIP_OPENED,
+    catalogVersion: 1,
+    trustFormulaVersion: 1,
+    circuitVersion: 1,
+    sequence: receiptSequence.read() as Uint<64>
+  };
+}
+
+export circuit proveDecision(
+  decisionId: Bytes<32>,
+  characterId: Uint<8>,
+  targetWeightBps: Uint<16>,
+  allowedDriftBps: Uint<16>,
+  autoThreshold: Uint<64>,
+  budget: Uint<64>,
+  expiry: Uint<64>,
+  mandateNonce: Bytes<32>,
+  spent: Uint<64>,
+  trustScore: Uint<8>,
+  historyDigest: Bytes<32>,
+  relationshipNonce: Bytes<32>,
+  currentTimestamp: Uint<64>,
+  valueA: Uint<64>,
+  valueB: Uint<64>,
+  currentWeightA: Uint<16>,
+  currentWeightARemainder: Uint<64>,
+  currentWeightB: Uint<16>,
+  currentWeightBRemainder: Uint<64>,
+  targetValueA: Uint<64>,
+  targetValueARemainder: Uint<64>,
+  targetValueB: Uint<64>,
+  targetValueBRemainder: Uint<64>,
+  effectiveCap: Uint<64>,
+  effectiveCapRemainder: Uint<64>,
+  totalCost: Uint<64>
+): [] {
+  const MAX_VALUE = 800000000000000;
+  assert(active, "relationship inactive");
+  assert(decisionId != pad(32, ""), "invalid decision id");
+  assertMandate(
+    characterId,
+    targetWeightBps,
+    allowedDriftBps,
+    autoThreshold,
+    budget,
+    expiry,
+    mandateNonce,
+    relationshipNonce
+  );
+  const version = mandateVersion.read() as Uint<64>;
+  assert(
+    computeMandateCommitment(
+      characterId,
+      targetWeightBps,
+      allowedDriftBps,
+      autoThreshold,
+      budget,
+      expiry,
+      mandateNonce,
+      version
+    ) == mandateCommitment,
+    "mandate commitment mismatch"
+  );
+  assertRelationship(
+    localOwnerSecret(),
+    spent,
+    trustScore,
+    historyDigest,
+    relationshipNonce,
+    version
+  );
+  assert(currentTimestamp <= expiry, "mandate expired");
+  assert(valueA <= MAX_VALUE && valueB <= MAX_VALUE, "asset value out of range");
+  assert(totalCost <= MAX_VALUE, "cost out of range");
+
+  const key = decisionKey(decisionId, version);
+  assert(!usedDecisionIds.member(disclose(key)), "decision already used");
+  const totalValue = ((valueA as Uint<128>) + (valueB as Uint<128>)) as Uint<64>;
+  assert(totalValue > 0, "empty portfolio");
+  assert(
+    quotientIsValid(
+      multiply64x16(valueA, 10000),
+      totalValue,
+      currentWeightA,
+      currentWeightARemainder
+    ),
+    "invalid asset A weight"
+  );
+  assert(
+    quotientIsValid(
+      multiply64x16(valueB, 10000),
+      totalValue,
+      currentWeightB,
+      currentWeightBRemainder
+    ),
+    "invalid asset B weight"
+  );
+
+  const targetWeightBpsB = 10000 - targetWeightBps;
+  const drift = max16(
+    absDiff16(currentWeightA, targetWeightBps),
+    absDiff16(currentWeightB, targetWeightBpsB)
+  );
+  const goalA = goalWeight(characterId, currentWeightA, targetWeightBps, allowedDriftBps);
+  const goalB = 10000 - goalA;
+  assert(
+    quotientIsValid(
+      multiply64x16(totalValue, goalA),
+      10000,
+      targetValueA,
+      targetValueARemainder
+    ),
+    "invalid asset A target value"
+  );
+  assert(
+    quotientIsValid(
+      multiply64x16(totalValue, goalB),
+      10000,
+      targetValueB,
+      targetValueBRemainder
+    ),
+    "invalid asset B target value"
+  );
+  const movedValue = min64(
+    absDiff64(targetValueA, valueA),
+    absDiff64(targetValueB, valueB)
+  );
+
+  usedDecisionIds.insert(disclose(key));
+  receiptSequence.increment(1);
+  if (disclose(
+    drift <= allowedDriftBps ||
+    movedValue < minTradeValue(characterId) ||
+    totalCost >= movedValue
+  )) {
+    pendingDecisionId = none<Bytes<32>>();
+    lastReceipt = Receipt {
+      decisionId: disclose(decisionId),
+      status: ReceiptStatus.HELD,
+      catalogVersion: 1,
+      trustFormulaVersion: 1,
+      circuitVersion: 1,
+      sequence: receiptSequence.read() as Uint<64>
+    };
+  } else {
+    assert(spent + movedValue <= budget, "budget exceeded");
+    const discretionBps = (1000 + (trustScore as Uint<16>) * 90) as Uint<16>;
+    assert(
+      quotientIsValid(
+        multiply64x16(autoThreshold, discretionBps),
+        10000,
+        effectiveCap,
+        effectiveCapRemainder
+      ),
+      "invalid effective cap"
+    );
+    if (disclose(movedValue <= effectiveCap)) {
+      pendingDecisionId = none<Bytes<32>>();
+      lastReceipt = Receipt {
+        decisionId: disclose(decisionId),
+        status: ReceiptStatus.PROVED_AUTO_ELIGIBLE,
+        catalogVersion: 1,
+        trustFormulaVersion: 1,
+        circuitVersion: 1,
+        sequence: receiptSequence.read() as Uint<64>
+      };
+    } else {
+      pendingDecisionId = disclose(some<Bytes<32>>(decisionId));
+      lastReceipt = Receipt {
+        decisionId: disclose(decisionId),
+        status: ReceiptStatus.OWNER_REQUIRED,
+        catalogVersion: 1,
+        trustFormulaVersion: 1,
+        circuitVersion: 1,
+        sequence: receiptSequence.read() as Uint<64>
+      };
+    }
+  }
+}
+
+export circuit resolvePending(decisionId: Bytes<32>, approved: Boolean): [] {
+  assert(active, "relationship inactive");
+  const version = mandateVersion.read() as Uint<64>;
+  assert(
+    computeOwnerCommitment(localOwnerSecret(), version) == ownerCommitment,
+    "owner authentication failed"
+  );
+  assert(pendingDecisionId.is_some, "no pending decision");
+  assert(pendingDecisionId.value == decisionId, "pending decision mismatch");
+  assert(lastReceipt.status == ReceiptStatus.OWNER_REQUIRED, "decision already resolved");
+
+  pendingDecisionId = none<Bytes<32>>();
+  receiptSequence.increment(1);
+  if (disclose(approved)) {
+    lastReceipt = Receipt {
+      decisionId: disclose(decisionId),
+      status: ReceiptStatus.OWNER_APPROVED,
+      catalogVersion: 1,
+      trustFormulaVersion: 1,
+      circuitVersion: 1,
+      sequence: receiptSequence.read() as Uint<64>
+    };
+  } else {
+    lastReceipt = Receipt {
+      decisionId: disclose(decisionId),
+      status: ReceiptStatus.OWNER_REJECTED,
+      catalogVersion: 1,
+      trustFormulaVersion: 1,
+      circuitVersion: 1,
+      sequence: receiptSequence.read() as Uint<64>
+    };
+  }
+}
+
+export circuit recordRelationshipEvent(
+  decisionId: Bytes<32>,
+  eventKind: Uint<8>,
+  oldSpent: Uint<64>,
+  oldTrustScore: Uint<8>,
+  oldHistoryDigest: Bytes<32>,
+  relationshipNonce: Bytes<32>,
+  valueQuote: Uint<64>,
+  frictionQuote: Uint<64>,
+  operatingCost: Uint<64>,
+  sourceDigest: Bytes<32>
+): [] {
+  const MAX_VALUE = 800000000000000;
+  assert(active, "relationship inactive");
+  assert(eventKind >= 1 && eventKind <= 4, "unknown relationship event");
+  assert(valueQuote <= MAX_VALUE, "event value out of range");
+  assert(frictionQuote <= MAX_VALUE && operatingCost <= MAX_VALUE, "event cost out of range");
+  const version = mandateVersion.read() as Uint<64>;
+  assertRelationship(
+    localOwnerSecret(),
+    oldSpent,
+    oldTrustScore,
+    oldHistoryDigest,
+    relationshipNonce,
+    version
+  );
+
+  const key = decisionKey(decisionId, version);
+  const decisionWasUsed = usedDecisionIds.member(disclose(key));
+  assert(
+    (eventKind == 3 && !decisionWasUsed) || (eventKind != 3 && decisionWasUsed),
+    "relationship event decision mismatch"
+  );
+  const lastDecisionMatches = lastReceipt.decisionId == decisionId;
+  const lastWasAutoEligible = lastReceipt.status == ReceiptStatus.PROVED_AUTO_ELIGIBLE;
+  const lastWasOwnerApproved = lastReceipt.status == ReceiptStatus.OWNER_APPROVED;
+  const lastWasOwnerRejected = lastReceipt.status == ReceiptStatus.OWNER_REJECTED;
+  const executionIsEligible = lastDecisionMatches && (lastWasAutoEligible || lastWasOwnerApproved);
+  const decisionWasRejected = lastDecisionMatches && lastWasOwnerRejected;
+  assert(
+    eventKind != 1 || executionIsEligible,
+    "execution not eligible"
+  );
+  assert(
+    eventKind != 2 || decisionWasRejected,
+    "decision not rejected"
+  );
+
+  const relationshipEventKey = eventKey(decisionId, eventKind, version);
+  assert(!usedDecisionIds.member(disclose(relationshipEventKey)), "relationship event already used");
+  usedDecisionIds.insert(disclose(relationshipEventKey));
+  const newTrustScore = computeTrustAfterEvent(
+    oldTrustScore,
+    eventKind,
+    valueQuote,
+    frictionQuote,
+    operatingCost
+  );
+  const newSpent = spentAfterEvent(oldSpent, eventKind, valueQuote);
+  assert(newSpent <= 1600000000000000, "relationship spend out of range");
+  const newHistoryDigest = computeHistoryAfter(
+    oldHistoryDigest,
+    decisionId,
+    eventKind,
+    sourceDigest,
+    newTrustScore,
+    newSpent
+  );
+  relationshipCommitment = disclose(
+    computeRelationshipCommitment(
+      ownerCommitment,
+      mandateCommitment,
+      newSpent,
+      newTrustScore,
+      newHistoryDigest,
+      relationshipNonce,
+      version
+    )
+  );
+  receiptSequence.increment(1);
+  lastReceipt = Receipt {
+    decisionId: disclose(decisionId),
+    status: ReceiptStatus.RELATIONSHIP_UPDATED,
+    catalogVersion: 1,
+    trustFormulaVersion: 1,
+    circuitVersion: 1,
+    sequence: receiptSequence.read() as Uint<64>
+  };
+}
+
+export circuit revokeRelationship(): [] {
+  assert(active, "relationship inactive");
+  const version = mandateVersion.read() as Uint<64>;
+  assert(
+    computeOwnerCommitment(localOwnerSecret(), version) == ownerCommitment,
+    "owner authentication failed"
+  );
+
+  active = false;
+  pendingDecisionId = none<Bytes<32>>();
+  receiptSequence.increment(1);
+  lastReceipt = Receipt {
+    decisionId: pad(32, ""),
+    status: ReceiptStatus.RELATIONSHIP_REVOKED,
+    catalogVersion: 1,
+    trustFormulaVersion: 1,
+    circuitVersion: 1,
+    sequence: receiptSequence.read() as Uint<64>
+  };
+}

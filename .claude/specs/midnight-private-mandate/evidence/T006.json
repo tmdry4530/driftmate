@@ -1,0 +1,52 @@
+{
+  "task": "T006",
+  "specHash": "56512e8866779540b3fc30945a8825d27a0fd63089578ed3a81e2da53c0467e9",
+  "changedFiles": [
+    "README.md",
+    ".env.example",
+    "package.json"
+  ],
+  "commands": [
+    { "phase": "fast", "command": "pnpm midnight:versions", "exitCode": 0 },
+    { "phase": "fast", "command": "pnpm --filter @soon/web build", "exitCode": 0 },
+    { "phase": "fast", "command": "pnpm midnight:e2e", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm test", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm typecheck", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm --filter @soon/web build", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm contracts:setup", "exitCode": 0 },
+    { "phase": "idempotency", "command": "pnpm contracts:setup", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm contracts:test", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm e2e", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm midnight:versions", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm midnight:compile", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm midnight:test", "exitCode": 0 },
+    { "phase": "full", "command": "pnpm midnight:e2e", "exitCode": 0 },
+    { "phase": "convergence", "command": "pnpm install --frozen-lockfile", "exitCode": 0 }
+  ],
+  "observations": {
+    "testsPassed": 132,
+    "contractTestsPassed": 52,
+    "baseE2EChecksPassed": 19,
+    "midnightTestsPassed": 12,
+    "midnightProofsGeneratedPerRun": 2,
+    "midnightTransactionsFinalizedPerRun": 3,
+    "midnightPrivacyCheck": "pass",
+    "contractsSetupRepeatable": true,
+    "frozenLockfileInstall": "up-to-date"
+  },
+  "requirements": {
+    "R1.2": "pass",
+    "R1.3": "pass",
+    "R1.4": "pass",
+    "R1.5": "pass",
+    "R6.7": "pass",
+    "R6.8": "pass",
+    "R6.9": "pass",
+    "R8.1": "pass",
+    "R8.2": "pass",
+    "R8.3": "pass",
+    "R8.4": "pass",
+    "R8.5": "pass"
+  },
+  "verifiedAt": "2026-09-04T09:50:02Z"
+}

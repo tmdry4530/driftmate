@@ -2,9 +2,20 @@ packages:
   - 'packages/*'
   - 'apps/*'
 
+overrides:
+  '@midnight-ntwrk/ledger-v8': 8.1.0
+  '@midnight-ntwrk/onchain-runtime-v3': 3.0.0
+
 allowBuilds:
   esbuild: true
   # 선택적 네이티브 최적화. 순수 JS 대체 구현이 있어 없어도 동작한다.
   keccak: false
   bufferutil: false
   utf-8-validate: false
+  # compact-js의 선택적 네이티브 가속. 순수 JS 대체 구현을 사용한다.
+  msgpackr-extract: false
+  '@swc/core': false
+  classic-level: true
+  protobufjs: true
+  cpu-features: false
+  ssh2: false

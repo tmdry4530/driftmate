@@ -6,6 +6,8 @@
  */
 interface ImportMetaEnv {
   readonly [key: string]: string | undefined
+  readonly VITE_APP_MODE?: 'base' | 'midnight'
+  readonly VITE_MIDNIGHT_CONTRACT_ADDRESS?: string
 }
 
 interface ImportMeta {

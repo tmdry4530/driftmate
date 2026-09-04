@@ -1,40 +1,55 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { WagmiProvider } from 'wagmi'
-import { App } from './App.js'
-import { loadConfig } from './config.js'
-import { buildWagmiConfig } from './wagmi.js'
 import './styles.css'
 
 const root = createRoot(document.getElementById('root')!)
 
-try {
-  const config = loadConfig()
-  const wagmiConfig = buildWagmiConfig(config)
-  const queryClient = new QueryClient()
-  const keeperUrl = import.meta.env.VITE_KEEPER_URL as string | undefined
+async function start() {
+  if (import.meta.env.VITE_APP_MODE !== 'base') {
+    const [{ Buffer }, { MidnightApp }] = await Promise.all([
+      import('buffer'),
+      import('./MidnightApp.js'),
+    ])
+    globalThis.Buffer = Buffer
+    root.render(<StrictMode><MidnightApp /></StrictMode>)
+    return
+  }
 
-  root.render(
-    <StrictMode>
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          <App config={config} keeperUrl={keeperUrl} />
-        </QueryClientProvider>
-      </WagmiProvider>
-    </StrictMode>,
-  )
-} catch (e) {
-  root.render(
-    <div className="app">
-      <div className="notice">
-        <strong>설정이 필요해요.</strong>
-        <p style={{ margin: '8px 0 0' }}>
-          {e instanceof Error ? e.message : '알 수 없는 오류'}
-          <br />
-          <code>apps/web/.env.example</code>을 <code>.env</code>로 복사한 뒤 배포한 주소를 채워 주세요.
-        </p>
-      </div>
-    </div>,
-  )
+  try {
+    const [reactQuery, wagmi, appModule, configModule, wagmiModule] = await Promise.all([
+      import('@tanstack/react-query'),
+      import('wagmi'),
+      import('./App.js'),
+      import('./config.js'),
+      import('./wagmi.js'),
+    ])
+    const config = configModule.loadConfig()
+    const wagmiConfig = wagmiModule.buildWagmiConfig(config)
+    const queryClient = new reactQuery.QueryClient()
+    const keeperUrl = import.meta.env.VITE_KEEPER_URL as string | undefined
+    root.render(
+      <StrictMode>
+        <wagmi.WagmiProvider config={wagmiConfig}>
+          <reactQuery.QueryClientProvider client={queryClient}>
+            <appModule.App config={config} keeperUrl={keeperUrl} />
+          </reactQuery.QueryClientProvider>
+        </wagmi.WagmiProvider>
+      </StrictMode>,
+    )
+  } catch (error) {
+    root.render(
+      <div className="app">
+        <div className="notice">
+          <strong>설정이 필요해요.</strong>
+          <p style={{ margin: '8px 0 0' }}>
+            {error instanceof Error ? error.message : '알 수 없는 오류'}
+            <br />
+            <code>apps/web/.env.example</code>을 <code>.env</code>로 복사한 뒤 배포한 주소를 채워 주세요.
+          </p>
+        </div>
+      </div>,
+    )
+  }
 }
+
+void start()

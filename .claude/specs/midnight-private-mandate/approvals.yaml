@@ -1,0 +1,56 @@
+spec_id: INT-2026-0904
+artifacts:
+  requirements:
+    status: approved
+    version: 1
+    artifact_sha256: "4bda4ae1a696c1c30a5005aa6d31efbe6f869168cd889eb4bf02a997c15e1af4"
+    based_on_commit: "2edfd121fc4dc392d2b1b11cd5deed7118527114"
+    approved_by: user
+    approved_at: "2026-09-04T07:28:05Z"
+  design:
+    status: approved
+    version: 2
+    artifact_sha256: "815ad16beeb43aca8a823e2bd1a0acd179cdcfa552b24d31471ea1c44d44b0f3"
+    based_on_commit: "2edfd121fc4dc392d2b1b11cd5deed7118527114"
+    approved_by: user
+    approved_at: "2026-09-04T08:51:05Z"
+  tasks:
+    status: approved
+    version: 5
+    artifact_sha256: "541b721ef8b3da46d4b7c22a5fe20d69949ac879ec57a65dfe98f449fa857625"
+    based_on_commit: "2edfd121fc4dc392d2b1b11cd5deed7118527114"
+    approved_by: user
+    approved_at: "2026-09-04T09:29:30Z"
+  release:
+    status: approved
+    version: 1
+    artifact_sha256: "0ee7b4ac3f0fd1a2d56c1239d1bc34b59993ec4288119235db4f57eaba04a473"
+    based_on_commit: "2edfd121fc4dc392d2b1b11cd5deed7118527114"
+    approved_by: user
+    approved_at: "2026-09-04T10:08:46Z"
+invalidation_history:
+  - artifact: tasks
+    invalidated_version: 4
+    artifact_sha256: "f1711d55ebc6d342a7d4a0f5d969cc5f6a77458b7d1e7a7e5827c2ff73dfbec1"
+    invalidated_at: "2026-09-04T09:29:30Z"
+    reason: 비멱등 contracts:setup을 최소 수정할 T006 package.json 범위 확장을 사용자가 승인함
+  - artifact: tasks
+    invalidated_version: 3
+    artifact_sha256: "9c96261e9ed87fe62c489719cf1f67d4776758b321b3a51699250a6ca5c7c710"
+    invalidated_at: "2026-09-04T09:05:37Z"
+    reason: T005 실제 proof 확정 후 잘못된 사후 assertion을 수정할 추가 1회 시도를 사용자가 승인함
+  - artifact: design
+    invalidated_version: 1
+    artifact_sha256: "27555f9e913792f5536a7a2d76f7bfb5157d8084fef314a52148eb008c2ddbe0"
+    invalidated_at: "2026-09-04T08:51:05Z"
+    reason: Midnight.js 4.1.1 official release lock이 ledger-v8 8.1.0을 요구해 승인된 8.0.3 runtime pin과 WASM instance가 충돌함
+  - artifact: tasks
+    invalidated_version: 2
+    artifact_sha256: "4724010660edb4f45bab9fcb5974f771a3424a39896378fb24700b6965970347"
+    invalidated_at: "2026-09-04T08:51:05Z"
+    reason: design의 Ledger runtime pin 정정이 T001 보존 계약에 영향을 줌
+  - artifact: tasks
+    invalidated_version: 1
+    artifact_sha256: "078d76d983bff13d254fdb4856da2644ef7cfd8534348ebfa928bc8e6e48a322"
+    invalidated_at: "2026-09-04T07:54:11Z"
+    reason: pnpm 선택적 native 모듈 정책을 기록할 pnpm-workspace.yaml이 허용 경로에서 누락됨

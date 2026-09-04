@@ -1,0 +1,36 @@
+{
+  "task": "T003",
+  "specHash": "103d871df8704aeccf15844f905745642ae06f50b14498e50ad536da06483af3",
+  "changedFiles": [
+    "apps/web/package.json",
+    "apps/web/src/vite-env.d.ts",
+    "apps/web/src/midnight/client.ts",
+    "apps/web/src/midnight/client.test.ts",
+    "apps/web/src/midnight/privateState.ts",
+    "apps/web/src/midnight/privateState.test.ts",
+    "apps/web/src/midnight/proofInput.ts",
+    "apps/web/src/midnight/proofInput.test.ts",
+    "apps/web/vite.config.ts",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml"
+  ],
+  "commands": [
+    { "command": "pnpm exec vitest run apps/web/src/midnight", "exitCode": 0 },
+    { "command": "pnpm typecheck", "exitCode": 0 },
+    { "command": "pnpm --filter @soon/web build", "exitCode": 0 },
+    { "command": "pnpm test", "exitCode": 0 },
+    { "command": "pnpm midnight:test", "exitCode": 0 }
+  ],
+  "requirements": {
+    "R2.4": "pass",
+    "R2.5": "pass",
+    "R2.6": "pass",
+    "R3.4": "pass",
+    "R3.5": "pass",
+    "R4.4": "pass",
+    "R5.5": "pass",
+    "R6.8": "pass",
+    "R8.2": "pass"
+  },
+  "verifiedAt": "2026-09-04T08:55:06Z"
+}

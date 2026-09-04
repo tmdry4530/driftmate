@@ -25,3 +25,6 @@ apps/web/.live2d-sdk/
 # Foundry 의존성 — pnpm contracts:setup 으로 복원
 packages/contracts/lib/
 .gstack/
+
+# Project-local Midnight Compact CLI and compiler
+.compact/

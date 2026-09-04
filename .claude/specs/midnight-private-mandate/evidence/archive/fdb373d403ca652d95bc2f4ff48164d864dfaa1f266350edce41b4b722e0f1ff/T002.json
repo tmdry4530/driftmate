@@ -1,0 +1,43 @@
+{
+  "task": "T002",
+  "specHash": "fdb373d403ca652d95bc2f4ff48164d864dfaa1f266350edce41b4b722e0f1ff",
+  "changedFiles": [
+    "packages/engine/src/characters.ts",
+    "packages/engine/src/index.ts",
+    "packages/midnight-contract/CharacterMandate.compact",
+    "packages/midnight-contract/managed/character-mandate/**",
+    "packages/midnight-contract/src/CharacterMandate.test.ts",
+    "packages/midnight-contract/src/goldenVectors.test.ts",
+    "packages/midnight-contract/src/index.ts",
+    "packages/midnight-contract/src/simulator.ts"
+  ],
+  "commands": [
+    { "command": "pnpm midnight:compile", "exitCode": 0 },
+    { "command": "pnpm midnight:test", "exitCode": 0 },
+    { "command": "pnpm exec vitest run packages/engine/src/decide.test.ts packages/engine/src/trust.test.ts", "exitCode": 0 },
+    { "command": "pnpm test", "exitCode": 0 },
+    { "command": "pnpm typecheck", "exitCode": 0 }
+  ],
+  "requirements": {
+    "R3.2": "pass",
+    "R3.3": "pass",
+    "R3.4": "pass",
+    "R4.1": "pass",
+    "R4.2": "pass",
+    "R4.3": "pass",
+    "R4.4": "pass",
+    "R5.1": "pass",
+    "R5.2": "pass",
+    "R5.3": "pass",
+    "R5.4": "pass",
+    "R6.1": "pass",
+    "R6.2": "pass",
+    "R6.3": "pass",
+    "R6.4": "pass",
+    "R6.5": "pass",
+    "R6.6": "pass",
+    "R6.8": "pass",
+    "R8.3": "pass"
+  },
+  "verifiedAt": "2026-09-04T08:11:07Z"
+}

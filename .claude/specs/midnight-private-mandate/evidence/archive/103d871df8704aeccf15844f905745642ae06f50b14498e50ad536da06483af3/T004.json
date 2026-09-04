@@ -1,0 +1,44 @@
+{
+  "task": "T004",
+  "specHash": "103d871df8704aeccf15844f905745642ae06f50b14498e50ad536da06483af3",
+  "changedFiles": [
+    "apps/web/index.html",
+    "apps/web/src/main.tsx",
+    "apps/web/src/MidnightApp.tsx",
+    "apps/web/src/MidnightApp.test.tsx",
+    "apps/web/src/midnight/components/MidnightApp.test.ts",
+    "apps/web/src/styles.css"
+  ],
+  "commands": [
+    { "command": "pnpm exec vitest run apps/web/src/MidnightApp.test.tsx apps/web/src/components/CharacterStage.test.ts", "exitCode": 0 },
+    { "command": "pnpm typecheck", "exitCode": 0 },
+    { "command": "pnpm --filter @soon/web build", "exitCode": 0 },
+    { "command": "VITE_APP_MODE=base pnpm --filter @soon/web build", "exitCode": 0 },
+    { "command": "pnpm test", "exitCode": 0 },
+    { "command": "agent-browser 360px and 1440px scrollWidth check (archived unchanged UI evidence)", "exitCode": 0 }
+  ],
+  "requirements": {
+    "R1.1": "pass",
+    "R1.2": "pass",
+    "R1.3": "pass",
+    "R1.4": "pass",
+    "R1.5": "pass",
+    "R2.5": "pass",
+    "R3.5": "pass",
+    "R3.6": "pass",
+    "R5.5": "pass",
+    "R6.3": "pass",
+    "R6.4": "pass",
+    "R6.7": "pass",
+    "R6.8": "pass",
+    "R6.9": "pass",
+    "R7.1": "pass",
+    "R7.2": "pass",
+    "R7.3": "pass",
+    "R7.4": "pass",
+    "R7.5": "pass",
+    "R7.6": "pass",
+    "R7.7": "pass"
+  },
+  "verifiedAt": "2026-09-04T08:56:00Z"
+}

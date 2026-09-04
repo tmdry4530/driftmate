@@ -1,0 +1,244 @@
+spec_id: INT-2026-0904
+requirements:
+  R1.1:
+    design: ["§5 화면 설계"]
+    tasks: [T004]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json]
+  R1.2:
+    design: ["§3 변경 후 흐름", "§5 화면 설계"]
+    tasks: [T004, T006]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json, evidence/T006.json]
+  R1.3:
+    design: ["§3 변경 후 흐름", "§4.4 웹 상태"]
+    tasks: [T004, T006]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json, evidence/T006.json]
+  R1.4:
+    design: ["§1 재사용 요소", "§5 화면 설계"]
+    tasks: [T004, T006]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json, evidence/T006.json]
+  R1.5:
+    design: ["§5 화면 설계"]
+    tasks: [T004, T006]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json, evidence/T006.json]
+
+  R2.1:
+    design: ["§4.2 브라우저 private state", "§4.3 Compact circuits"]
+    tasks: [T001]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts]
+    evidence: [evidence/T001.json]
+  R2.2:
+    design: ["§4.1 Compact public ledger", "§4.3 Compact circuits"]
+    tasks: [T001, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T001.json, evidence/T005.json]
+  R2.3:
+    design: ["§3 변경 후 흐름", "§4.3 Compact circuits"]
+    tasks: [T001]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts]
+    evidence: [evidence/T001.json]
+  R2.4:
+    design: ["§4.2 브라우저 private state", "§6 보안·프라이버시 규칙"]
+    tasks: [T003, T005]
+    tests: [apps/web/src/midnight/privateState.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T003.json, evidence/T005.json]
+  R2.5:
+    design: ["§4.2 브라우저 private state", "§5 화면 설계"]
+    tasks: [T003, T004]
+    tests: [apps/web/src/midnight/privateState.test.ts, apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T003.json, evidence/T004.json]
+  R2.6:
+    design: ["§4.2 브라우저 private state", "§4.4 웹 상태"]
+    tasks: [T003]
+    tests: [apps/web/src/midnight/privateState.test.ts]
+    evidence: [evidence/T003.json]
+
+  R3.1:
+    design: ["§2 기술 선택과 이유", "§7 Compatibility와 운영"]
+    tasks: [T001]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts]
+    evidence: [evidence/T001.json]
+  R3.2:
+    design: ["§2 기술 선택과 이유", "§4.3 Compact circuits"]
+    tasks: [T002]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts]
+    evidence: [evidence/T002.json]
+  R3.3:
+    design: ["§4.1 Compact public ledger", "§4.3 Compact circuits"]
+    tasks: [T002, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T005.json]
+  R3.4:
+    design: ["§4 컴포넌트와 인터페이스", "§7 Compatibility와 운영"]
+    tasks: [T002, T003]
+    tests: [packages/midnight-contract/src/goldenVectors.test.ts, apps/web/src/midnight/proofInput.test.ts]
+    evidence: [evidence/T002.json, evidence/T003.json]
+  R3.5:
+    design: ["§2 기술 선택과 이유", "§6 검증 경계"]
+    tasks: [T003, T004]
+    tests: [apps/web/src/narrator/isolation.test-d.ts, apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T003.json, evidence/T004.json]
+  R3.6:
+    design: ["§5 주요 상태"]
+    tasks: [T004]
+    tests: [apps/web/src/characterState.test.ts, apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json]
+
+  R4.1:
+    design: ["§1 재사용 요소", "§2 기술 선택과 이유"]
+    tasks: [T002]
+    tests: [packages/midnight-contract/src/goldenVectors.test.ts]
+    evidence: [evidence/T002.json]
+  R4.2:
+    design: ["§3 변경 후 흐름", "§8 테스트 전략"]
+    tasks: [T002, T005]
+    tests: [packages/engine/src/decide.test.ts, packages/midnight-contract/src/goldenVectors.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T005.json]
+  R4.3:
+    design: ["§1 확인된 사실", "§6 검증 경계"]
+    tasks: [T002]
+    tests: [packages/engine/src/purity.test.ts, packages/engine/src/trust.test.ts]
+    evidence: [evidence/T002.json]
+  R4.4:
+    design: ["§4 컴포넌트와 인터페이스", "§6 보안·프라이버시 규칙"]
+    tasks: [T002, T003]
+    tests: [packages/midnight-contract/src/goldenVectors.test.ts, apps/web/src/midnight/proofInput.test.ts]
+    evidence: [evidence/T002.json, evidence/T003.json]
+
+  R5.1:
+    design: ["§4.3 Compact circuits"]
+    tasks: [T002, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T005.json]
+  R5.2:
+    design: ["§4.3 Compact circuits", "§6 검증 경계"]
+    tasks: [T002, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T005.json]
+  R5.3:
+    design: ["§4.1 Compact public ledger", "§6 보안·프라이버시 규칙"]
+    tasks: [T002, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T005.json]
+  R5.4:
+    design: ["§4.1 Compact public ledger", "§6 보안·프라이버시 규칙"]
+    tasks: [T001, T002, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T001.json, evidence/T002.json, evidence/T005.json]
+  R5.5:
+    design: ["§4.4 웹 상태", "§5 주요 상태"]
+    tasks: [T003, T004, T005]
+    tests: [apps/web/src/midnight/client.test.ts, apps/web/src/MidnightApp.test.tsx, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T003.json, evidence/T004.json, evidence/T005.json]
+
+  R6.1:
+    design: ["§1 확인된 사실", "§4.3 Compact circuits"]
+    tasks: [T002]
+    tests: [packages/engine/src/trust.test.ts, packages/midnight-contract/src/CharacterMandate.test.ts]
+    evidence: [evidence/T002.json]
+  R6.2:
+    design: ["§1 확인된 사실", "§7 Compatibility와 운영"]
+    tasks: [T002]
+    tests: [packages/engine/src/purity.test.ts, packages/engine/src/trust.test.ts]
+    evidence: [evidence/T002.json]
+  R6.3:
+    design: ["§3 변경 후 흐름", "§4.3 Compact circuits"]
+    tasks: [T002, T004, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, apps/web/src/MidnightApp.test.tsx, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T004.json, evidence/T005.json]
+  R6.4:
+    design: ["§3 변경 후 흐름", "§4.3 Compact circuits"]
+    tasks: [T002, T004, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, apps/web/src/MidnightApp.test.tsx, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T004.json, evidence/T005.json]
+  R6.5:
+    design: ["§3 변경 후 흐름", "§4.3 Compact circuits"]
+    tasks: [T002, T005]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T005.json]
+  R6.6:
+    design: ["§4.3 Compact circuits", "§5 주요 상태"]
+    tasks: [T002, T005]
+    tests: [packages/engine/src/trust.test.ts, packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T005.json]
+  R6.7:
+    design: ["§1 확인된 사실", "§9 결정 기록"]
+    tasks: [T004, T006]
+    tests: [packages/contracts/test/AgentVault.t.sol, apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json, evidence/T006.json]
+  R6.8:
+    design: ["§4.4 웹 상태", "§6 검증 경계"]
+    tasks: [T002, T003, T004, T005, T006]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, apps/web/src/midnight/client.test.ts, apps/web/src/MidnightApp.test.tsx, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T002.json, evidence/T003.json, evidence/T004.json, evidence/T005.json, evidence/T006.json]
+  R6.9:
+    design: ["§3 변경 후 흐름", "§6 검증 경계"]
+    tasks: [T004, T005, T006]
+    tests: [apps/web/src/MidnightApp.test.tsx, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T004.json, evidence/T005.json, evidence/T006.json]
+
+  R7.1:
+    design: ["§5 정보 구조"]
+    tasks: [T004]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json]
+  R7.2:
+    design: ["§5 정보 구조", "§5 주요 상태"]
+    tasks: [T004]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json]
+  R7.3:
+    design: ["§4.1 Compact public ledger", "§5 정보 구조"]
+    tasks: [T004, T005]
+    tests: [apps/web/src/MidnightApp.test.tsx, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T004.json, evidence/T005.json]
+  R7.4:
+    design: ["§4.4 웹 상태", "§5 주요 상태"]
+    tasks: [T004]
+    tests: [apps/web/src/MidnightApp.test.tsx, apps/web/src/characterState.test.ts]
+    evidence: [evidence/T004.json]
+  R7.5:
+    design: ["§5 시각 방향"]
+    tasks: [T004]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json]
+  R7.6:
+    design: ["§5 화면 설계"]
+    tasks: [T004]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json]
+  R7.7:
+    design: ["§5 주요 상태"]
+    tasks: [T004]
+    tests: [apps/web/src/MidnightApp.test.tsx]
+    evidence: [evidence/T004.json]
+
+  R8.1:
+    design: ["§7 Compatibility와 운영", "§8 테스트 전략"]
+    tasks: [T006]
+    tests: []
+    evidence: [evidence/T006.json]
+  R8.2:
+    design: ["§4.4 웹 상태", "§7 Compatibility와 운영"]
+    tasks: [T001, T003, T005, T006]
+    tests: [apps/web/src/midnight/client.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T001.json, evidence/T003.json, evidence/T005.json, evidence/T006.json]
+  R8.3:
+    design: ["§8 테스트 전략"]
+    tasks: [T001, T002, T005, T006]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/src/goldenVectors.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T001.json, evidence/T002.json, evidence/T005.json, evidence/T006.json]
+  R8.4:
+    design: ["§3 변경 후 흐름", "§5 화면 설계"]
+    tasks: [T006]
+    tests: []
+    evidence: [evidence/T006.json]
+  R8.5:
+    design: ["§7 Compatibility와 운영", "§8 테스트 전략"]
+    tasks: [T001, T005, T006]
+    tests: [packages/midnight-contract/src/CharacterMandate.test.ts, packages/midnight-contract/e2e/run.ts]
+    evidence: [evidence/T001.json, evidence/T005.json, evidence/T006.json]

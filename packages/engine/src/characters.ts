@@ -1,6 +1,8 @@
 import type { CharacterId, StrategyParams } from '@soon/shared'
 import { bps } from './brand.js'
 
+export const CHARACTER_CATALOG_VERSION = 1 as const
+
 /**
  * 캐릭터 = 전략 파라미터 세트 (R2.1).
  * 사용자는 이 값을 수정할 수 없고, 성향을 바꾸려면 캐릭터를 바꿔야 한다 (R2.4).

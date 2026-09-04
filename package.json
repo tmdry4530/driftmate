@@ -7,7 +7,12 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b --pretty",
     "contracts:test": "forge test --root packages/contracts",
-    "contracts:setup": "cd packages/contracts && forge install foundry-rs/forge-std@v1.16.2 --no-git",
+    "contracts:setup": "test -d packages/contracts/lib/forge-std || (cd packages/contracts && forge install foundry-rs/forge-std@v1.16.2 --no-git)",
+    "midnight:setup": "sh scripts/midnight/setup.sh",
+    "midnight:versions": "sh scripts/midnight/versions.sh",
+    "midnight:compile": "sh scripts/midnight/compile.sh",
+    "midnight:test": "pnpm --filter @soon/midnight-contract test",
+    "midnight:e2e": "sh scripts/midnight/e2e.sh",
     "live2d:setup": "node apps/web/live2d/setup.mjs",
     "e2e": "tsx apps/keeper/e2e/run.ts"
   },

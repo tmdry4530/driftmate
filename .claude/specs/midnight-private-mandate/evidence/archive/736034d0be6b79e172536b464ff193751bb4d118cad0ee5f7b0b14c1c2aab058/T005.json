@@ -1,0 +1,56 @@
+{
+  "task": "T005",
+  "specHash": "736034d0be6b79e172536b464ff193751bb4d118cad0ee5f7b0b14c1c2aab058",
+  "changedFiles": [
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "scripts/midnight/e2e.sh",
+    "infra/midnight/compose.yml",
+    "packages/midnight-contract/e2e/run.ts",
+    "packages/midnight-contract/package.json",
+    "packages/midnight-contract/src/index.test.ts"
+  ],
+  "commands": [
+    { "command": "pnpm midnight:e2e", "exitCode": 0 },
+    { "command": "pnpm midnight:versions", "exitCode": 0 },
+    { "command": "pnpm midnight:compile", "exitCode": 0 },
+    { "command": "pnpm midnight:test", "exitCode": 0 },
+    { "command": "pnpm --filter @soon/web build", "exitCode": 0 }
+  ],
+  "observations": {
+    "proofsGenerated": 2,
+    "transactionsFinalized": 3,
+    "mandateSubstitutionRejected": true,
+    "replayRejected": true,
+    "privateFixtureLeak": false,
+    "runtimeVersions": {
+      "compact": "0.5.1",
+      "compactCompiler": "0.31.1",
+      "ledger": "8.1.0",
+      "onchainRuntime": "3.0.0"
+    }
+  },
+  "requirements": {
+    "R2.2": "pass",
+    "R2.4": "pass",
+    "R3.3": "pass",
+    "R4.2": "pass",
+    "R5.1": "pass",
+    "R5.2": "pass",
+    "R5.3": "pass",
+    "R5.4": "pass",
+    "R5.5": "pass",
+    "R6.3": "pass",
+    "R6.4": "pass",
+    "R6.5": "pass",
+    "R6.6": "pass",
+    "R6.8": "pass",
+    "R6.9": "pass",
+    "R7.3": "pass",
+    "R8.2": "pass",
+    "R8.3": "pass",
+    "R8.5": "pass"
+  },
+  "verifiedAt": "2026-09-04T09:19:04Z"
+}
