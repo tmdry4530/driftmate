@@ -10,7 +10,7 @@ DriftMate — Private Character Protocol
 
 ## GitHub repository
 
-https://github.com/tmdry4530/driftmate/tree/hackathon/midnight-korea
+https://github.com/tmdry4530/driftmate-midnight
 
 ## Public demo
 
